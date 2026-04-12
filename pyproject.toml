@@ -1,0 +1,57 @@
+[project]
+name = "remote-patient-monitoring-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0.3",
+    "django-cors-headers>=4.9.0",
+    "django-filter>=25.2",
+    "djangorestframework>=3.17.1",
+    "djangorestframework-simplejwt>=5.4.0",
+    "djangorestframework-stubs>=3.16.9",
+    "drf-spectacular>=0.29.0",
+    "psycopg2-binary>=2.9.11",
+    "python-dotenv>=1.2.2",
+    "redis>=5.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-django>=4.12.0",
+    "ruff>=0.15.9",
+    "ty>=0.0.29",
+]
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Конфликты между правилами форматирования docstring
+    "D203",
+    "D213",
+    # Не применимо к русским docstring
+    "D401",
+    "D415",
+    # Конфликты с ruff formatter
+    "COM812",
+    "ISC001",
+    # Кириллические символы в русскоязычных строках — ожидаемое поведение
+    "RUF001",
+    "RUF002",
+    # Any допустим в **extra_fields паттернах Django-менеджеров
+    "ANN401",
+    # TRY003 требует кастомных классов исключений — избыточно для данного проекта
+    "TRY003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"manage.py" = ["ALL"]
+"*/migrations/*" = ["ALL"]
+"*/tests.py" = ["S101"]
