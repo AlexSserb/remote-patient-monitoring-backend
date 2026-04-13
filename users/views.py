@@ -13,9 +13,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from users.serializers import (
+    EmailChangeRequestSerializer,
+    EmailChangeVerifySerializer,
     LoginSerializer,
     LogoutSerializer,
     TokenRefreshSerializer,
+    UpdateProfileSerializer,
     UserProfileSerializer,
     VerifyOTPSerializer,
 )
@@ -92,15 +95,74 @@ def logout(request: Request) -> Response:
         403: OpenApiResponse(description="Доступ запрещён"),
         404: OpenApiResponse(description="Пользователь не найден"),
     },
+    methods=["GET"],
     summary="Профиль пользователя",
     tags=["users"],
 )
-@api_view(["GET"])
+@extend_schema(
+    request=UpdateProfileSerializer,
+    responses={
+        200: UserProfileSerializer,
+        403: OpenApiResponse(description="Доступ запрещён"),
+        404: OpenApiResponse(description="Пользователь не найден"),
+    },
+    methods=["PATCH"],
+    summary="Обновление имени и фамилии",
+    tags=["users"],
+)
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def get_user(request: Request, user_id: int) -> Response:
-    """Возвращает профиль пользователя; доступен только владельцу аккаунта."""
+    """Возвращает или обновляет профиль пользователя; доступен только владельцу аккаунта."""
     if request.user.pk != user_id:
         raise PermissionDenied
     user = UserModel.objects.get(pk=user_id)
-    serializer = UserProfileSerializer(user)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    if request.method == "PATCH":
+        serializer = UpdateProfileSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+    return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    request=EmailChangeRequestSerializer,
+    responses={
+        204: OpenApiResponse(description="OTP отправлен на новый email"),
+        403: OpenApiResponse(description="Доступ запрещён"),
+    },
+    summary="Запрос смены email",
+    tags=["users"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def request_email_change(request: Request, user_id: int) -> Response:
+    """Проверяет новый email на уникальность и отправляет OTP для подтверждения."""
+    if request.user.pk != user_id:
+        raise PermissionDenied
+    serializer = EmailChangeRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save(user=request.user)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    request=EmailChangeVerifySerializer,
+    responses={
+        200: UserProfileSerializer,
+        403: OpenApiResponse(description="Доступ запрещён"),
+    },
+    summary="Подтверждение смены email",
+    tags=["users"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def verify_email_change(request: Request, user_id: int) -> Response:
+    """Проверяет OTP и применяет новый email к аккаунту пользователя."""
+    if request.user.pk != user_id:
+        raise PermissionDenied
+    user = UserModel.objects.get(pk=user_id)
+    serializer = EmailChangeVerifySerializer(data=request.data, context={"user": user})
+    serializer.is_valid(raise_exception=True)
+    user.email = serializer.validated_data["new_email"]
+    user.save(update_fields=["email"])
+    return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
