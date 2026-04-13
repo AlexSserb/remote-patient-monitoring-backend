@@ -179,3 +179,38 @@ def send_email_change_otp(new_email: str, otp: str) -> None:
         fail_silently=False,
     )
     logger.info("Email change OTP sent to %s", new_email)
+
+
+# Время жизни OTP при смене пароля
+_PASSWORD_RESET_TTL = 300
+
+
+def generate_and_store_password_reset_otp(user_id: int) -> str:
+    """Генерирует OTP для смены пароля и сохраняет его в Redis."""
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    _get_redis().setex(f"password_reset_otp:{user_id}", _PASSWORD_RESET_TTL, code)
+    return code
+
+
+def verify_and_consume_password_reset_otp(user_id: int, code: str) -> bool:
+    """Проверяет OTP смены пароля и удаляет его при успехе."""
+    client = _get_redis()
+    key = f"password_reset_otp:{user_id}"
+    stored = client.get(key)
+    # secrets.compare_digest защищает от timing-атак
+    if stored is not None and secrets.compare_digest(stored, code):
+        client.delete(key)
+        return True
+    return False
+
+
+def send_password_reset_otp(email: str, otp: str) -> None:
+    """Отправляет код подтверждения смены пароля на email пользователя."""
+    send_mail(
+        subject="Подтверждение смены пароля",
+        message=f"Ваш код подтверждения смены пароля: {otp}\n\nКод действителен 5 минут.",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[email],
+        fail_silently=False,
+    )
+    logger.info("Password reset OTP sent to %s", email)

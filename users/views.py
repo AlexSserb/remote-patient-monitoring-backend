@@ -17,11 +17,13 @@ from users.serializers import (
     EmailChangeVerifySerializer,
     LoginSerializer,
     LogoutSerializer,
+    PasswordResetVerifySerializer,
     TokenRefreshSerializer,
     UpdateProfileSerializer,
     UserProfileSerializer,
     VerifyOTPSerializer,
 )
+from users.services import generate_and_store_password_reset_otp, send_password_reset_otp
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -166,3 +168,46 @@ def verify_email_change(request: Request, user_id: int) -> Response:
     user.email = serializer.validated_data["new_email"]
     user.save(update_fields=["email"])
     return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    request=None,
+    responses={
+        204: OpenApiResponse(description="OTP отправлен на email пользователя"),
+        403: OpenApiResponse(description="Доступ запрещён"),
+    },
+    summary="Запрос смены пароля",
+    tags=["users"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def request_password_reset(request: Request, user_id: int) -> Response:
+    """Генерирует OTP и отправляет его на текущий email пользователя."""
+    if request.user.pk != user_id:
+        raise PermissionDenied
+    otp = generate_and_store_password_reset_otp(user_id)
+    send_password_reset_otp(request.user.email, otp)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    request=PasswordResetVerifySerializer,
+    responses={
+        204: OpenApiResponse(description="Пароль успешно изменён"),
+        403: OpenApiResponse(description="Доступ запрещён"),
+    },
+    summary="Подтверждение смены пароля",
+    tags=["users"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def verify_password_reset(request: Request, user_id: int) -> Response:
+    """Проверяет OTP и устанавливает новый пароль пользователя."""
+    if request.user.pk != user_id:
+        raise PermissionDenied
+    user = UserModel.objects.get(pk=user_id)
+    serializer = PasswordResetVerifySerializer(data=request.data, context={"user": user})
+    serializer.is_valid(raise_exception=True)
+    user.set_password(serializer.validated_data["new_password"])
+    user.save(update_fields=["password"])
+    return Response(status=status.HTTP_204_NO_CONTENT)
