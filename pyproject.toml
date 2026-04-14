@@ -19,11 +19,18 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "fakeredis>=2.28.0",
     "pytest>=9.0.2",
     "pytest-django>=4.12.0",
     "ruff>=0.15.9",
     "ty>=0.0.29",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "monitoring.test_settings"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [tool.ruff]
 line-length = 120
@@ -42,9 +49,10 @@ ignore = [
     # Конфликты с ruff formatter
     "COM812",
     "ISC001",
-    # Кириллические символы в русскоязычных строках — ожидаемое поведение
+    # Кириллические символы в русскоязычных строках и комментариях — ожидаемое поведение
     "RUF001",
     "RUF002",
+    "RUF003",
     # Any допустим в **extra_fields паттернах Django-менеджеров
     "ANN401",
     # TRY003 требует кастомных классов исключений — избыточно для данного проекта
@@ -55,3 +63,15 @@ ignore = [
 "manage.py" = ["ALL"]
 "*/migrations/*" = ["ALL"]
 "*/tests.py" = ["S101"]
+# ARG001/ARG002: фикстуры pytest используют параметры (db, mailoutbox) как маркеры зависимостей
+# ERA001: секционные разделители в виде комментариев не являются закомментированным кодом
+# TC001-TC003: импорты в тестах не нужно выносить в TYPE_CHECKING
+# UP043: Generator[None, None, None] в фикстурах yield
+"tests/**/*.py" = ["S101", "PLR2004", "S105", "S106", "S108", "ARG001", "ARG002", "ERA001", "TC001", "TC002", "TC003", "UP043"]
+"monitoring/test_settings.py" = ["F401", "F403", "F405"]
+
+[[tool.ty.overrides]]
+# test_settings.py переопределяет переменные из основных настроек через wildcard-импорт:
+# ty некорректно выводит Literal-тип из * импорта, поэтому invalid-assignment отключён для файла
+include = ["monitoring/test_settings.py"]
+rules.invalid-assignment = "ignore"
