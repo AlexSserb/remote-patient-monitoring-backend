@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from django.core.cache import cache
 
-from users.models import Role, User
-from users.serializers import (
+from apps.users.models import Role, User
+from apps.users.serializers import (
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
     LoginSerializer,
@@ -17,7 +17,7 @@ from users.serializers import (
     UserProfileSerializer,
     VerifyOTPSerializer,
 )
-from users.services import (
+from apps.users.services import (
     create_pre_auth_token,
     generate_and_store_email_change_otp,
     generate_and_store_otp,

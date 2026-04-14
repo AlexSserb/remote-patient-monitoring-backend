@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.db import IntegrityError
 
-from users.models import Role, User
+from apps.users.models import Role, User
 
 pytestmark = pytest.mark.django_db
 

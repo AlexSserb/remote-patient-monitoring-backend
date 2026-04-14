@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from users.views import (
+from apps.users.views import (
     get_user,
     login,
     logout,

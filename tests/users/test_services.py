@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from django.core.cache import cache
 
-from users.services import (
+from apps.users.services import (
     blacklist_refresh_token,
     create_pre_auth_token,
     decode_pre_auth_token,

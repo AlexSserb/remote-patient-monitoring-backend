@@ -12,7 +12,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from users.serializers import (
+from apps.users.serializers import (
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
     LoginSerializer,
@@ -23,7 +23,7 @@ from users.serializers import (
     UserProfileSerializer,
     VerifyOTPSerializer,
 )
-from users.services import generate_and_store_password_reset_otp, send_password_reset_otp
+from apps.users.services import generate_and_store_password_reset_otp, send_password_reset_otp
 
 if TYPE_CHECKING:
     from rest_framework.request import Request

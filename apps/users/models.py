@@ -7,7 +7,7 @@ from typing import ClassVar
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
-from users.managers import UserManager
+from apps.users.managers import UserManager
 
 
 class Role(models.TextChoices):

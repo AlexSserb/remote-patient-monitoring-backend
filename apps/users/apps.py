@@ -8,4 +8,4 @@ from django.apps import AppConfig
 class UsersConfig(AppConfig):
     """Конфигурация приложения users — кастомная модель пользователя и аутентификация."""
 
-    name = "users"
+    name = "apps.users"
