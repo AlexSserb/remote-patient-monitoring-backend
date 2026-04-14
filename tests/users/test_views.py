@@ -7,8 +7,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from users.models import User
-from users.services import (
+from apps.users.models import User
+from apps.users.services import (
     create_pre_auth_token,
     generate_and_store_email_change_otp,
     generate_and_store_otp,

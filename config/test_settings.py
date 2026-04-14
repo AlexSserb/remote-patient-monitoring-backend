@@ -20,7 +20,7 @@ os.environ.setdefault("MAIL_USERNAME", "test@test.com")
 os.environ.setdefault("MAIL_PASSWORD", "test")
 os.environ.setdefault("MAIL_DEFAULT_SENDER", "test@test.com")
 
-from monitoring.settings import *  # noqa: E402
+from config.settings import *  # noqa: E402
 
 # Используем in-memory бэкенд для email — письма доступны через django.core.mail.outbox
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"  # type: ignore[assignment]

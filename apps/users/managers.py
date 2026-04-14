@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from django.contrib.auth.base_user import BaseUserManager
 
 if TYPE_CHECKING:
-    from users.models import User
+    from apps.users.models import User
 
 
 class UserManager(BaseUserManager["User"]):

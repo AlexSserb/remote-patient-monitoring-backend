@@ -9,7 +9,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from users.services import (
+from apps.users.services import (
     blacklist_refresh_token,
     create_pre_auth_token,
     decode_pre_auth_token,

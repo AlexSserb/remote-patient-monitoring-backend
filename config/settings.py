@@ -30,7 +30,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     # Внутренние
-    "users",
+    "apps.users",
 ]
 
 MIDDLEWARE = [
@@ -45,7 +45,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "monitoring.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -63,7 +63,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "monitoring.wsgi.application"
+WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": {
@@ -78,7 +78,7 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "users.User"  # label остаётся "users" — последний компонент apps.users
 
 REDIS_URL: str = os.environ["REDIS_URL"]
 

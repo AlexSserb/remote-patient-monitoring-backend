@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "monitoring.test_settings"
+DJANGO_SETTINGS_MODULE = "config.test_settings"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -68,10 +68,10 @@ ignore = [
 # TC001-TC003: импорты в тестах не нужно выносить в TYPE_CHECKING
 # UP043: Generator[None, None, None] в фикстурах yield
 "tests/**/*.py" = ["S101", "PLR2004", "S105", "S106", "S108", "ARG001", "ARG002", "ERA001", "TC001", "TC002", "TC003", "UP043"]
-"monitoring/test_settings.py" = ["F401", "F403", "F405"]
+"config/test_settings.py" = ["F401", "F403", "F405"]
 
 [[tool.ty.overrides]]
 # test_settings.py переопределяет переменные из основных настроек через wildcard-импорт:
 # ty некорректно выводит Literal-тип из * импорта, поэтому invalid-assignment отключён для файла
-include = ["monitoring/test_settings.py"]
+include = ["config/test_settings.py"]
 rules.invalid-assignment = "ignore"

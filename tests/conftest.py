@@ -8,8 +8,8 @@ import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
-from users.models import Role, User
-from users.services import issue_token_pair
+from apps.users.models import Role, User
+from apps.users.services import issue_token_pair
 
 if TYPE_CHECKING:
     from collections.abc import Generator
