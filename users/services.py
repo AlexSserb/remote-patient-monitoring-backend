@@ -7,9 +7,9 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
-import redis
 from django.conf import settings
 from django.core import signing
+from django.core.cache import cache
 from django.core.mail import send_mail
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
@@ -23,26 +23,20 @@ _PRE_AUTH_MAX_AGE = 300
 _OTP_TTL = 300
 
 
-def _get_redis() -> redis.Redis[str]:
-    """Возвращает клиент Redis с декодированием ответов в строки."""
-    return redis.from_url(settings.REDIS_URL, decode_responses=True)
-
-
 def generate_and_store_otp(user_id: int) -> str:
-    """Генерирует криптографически стойкий 6-значный OTP и сохраняет его в Redis."""
+    """Генерирует криптографически стойкий 6-значный OTP и сохраняет его в кэше."""
     code = f"{secrets.randbelow(1_000_000):06d}"
-    _get_redis().setex(f"otp:{user_id}", _OTP_TTL, code)
+    cache.set(f"otp:{user_id}", code, timeout=_OTP_TTL)
     return code
 
 
 def verify_and_consume_otp(user_id: int, code: str) -> bool:
-    """Проверяет OTP по значению в Redis и удаляет его при успехе (одноразовое использование)."""
-    client = _get_redis()
+    """Проверяет OTP по значению в кэше и удаляет его при успехе (одноразовое использование)."""
     key = f"otp:{user_id}"
-    stored = client.get(key)
+    stored: str | None = cache.get(key)
     # secrets.compare_digest защищает от timing-атак при сравнении кодов
     if stored is not None and secrets.compare_digest(stored, code):
-        client.delete(key)
+        cache.delete(key)
         return True
     return False
 
@@ -70,7 +64,7 @@ def decode_pre_auth_token(token: str) -> int:
 
 
 def blacklist_refresh_token(raw_refresh: str) -> None:
-    """Добавляет JTI refresh-токена в Redis-блэклист с TTL равным оставшемуся времени жизни."""
+    """Добавляет JTI refresh-токена в кэш-блэклист с TTL равным оставшемуся времени жизни."""
     try:
         token = RefreshToken(raw_refresh)
     except TokenError as exc:
@@ -79,15 +73,15 @@ def blacklist_refresh_token(raw_refresh: str) -> None:
 
     jti: str = token[jwt_settings.JTI_CLAIM]
     exp: int = token["exp"]
-    # Рассчитываем оставшееся время жизни, чтобы Redis автоматически удалил запись
+    # Рассчитываем оставшееся время жизни, чтобы кэш автоматически удалил запись
     ttl = max(0, exp - int(datetime.now(tz=UTC).timestamp()))
     if ttl > 0:
-        _get_redis().setex(f"blacklist:jti:{jti}", ttl, "1")
+        cache.set(f"blacklist:jti:{jti}", "1", timeout=ttl)
 
 
 def is_refresh_token_blacklisted(jti: str) -> bool:
-    """Проверяет наличие JTI в Redis-блэклисте."""
-    return _get_redis().exists(f"blacklist:jti:{jti}") > 0
+    """Проверяет наличие JTI в кэш-блэклисте."""
+    return cache.get(f"blacklist:jti:{jti}") is not None
 
 
 def _build_token_pair(user_id: int) -> dict[str, str]:
@@ -122,7 +116,7 @@ def rotate_refresh_token(raw_refresh: str) -> dict[str, str]:
     exp: int = old_token["exp"]
     ttl = max(0, exp - int(datetime.now(tz=UTC).timestamp()))
     if ttl > 0:
-        _get_redis().setex(f"blacklist:jti:{jti}", ttl, "1")
+        cache.set(f"blacklist:jti:{jti}", "1", timeout=ttl)
 
     return _build_token_pair(user_id)
 
@@ -144,28 +138,26 @@ _EMAIL_CHANGE_TTL = 300
 
 
 def generate_and_store_email_change_otp(user_id: int, new_email: str) -> str:
-    """Генерирует OTP для смены email и сохраняет код и новый адрес в Redis."""
+    """Генерирует OTP для смены email и сохраняет код и новый адрес в кэше."""
     code = f"{secrets.randbelow(1_000_000):06d}"
-    client = _get_redis()
-    client.setex(f"email_change_otp:{user_id}", _EMAIL_CHANGE_TTL, code)
-    client.setex(f"email_change_pending:{user_id}", _EMAIL_CHANGE_TTL, new_email)
+    cache.set(f"email_change_otp:{user_id}", code, timeout=_EMAIL_CHANGE_TTL)
+    cache.set(f"email_change_pending:{user_id}", new_email, timeout=_EMAIL_CHANGE_TTL)
     return code
 
 
 def verify_and_consume_email_change_otp(user_id: int, code: str) -> str | None:
     """Проверяет OTP смены email и возвращает новый адрес при успехе, иначе None."""
-    client = _get_redis()
     otp_key = f"email_change_otp:{user_id}"
     email_key = f"email_change_pending:{user_id}"
-    stored_otp = client.get(otp_key)
-    stored_email = client.get(email_key)
+    stored_otp: str | None = cache.get(otp_key)
+    stored_email: str | None = cache.get(email_key)
     if stored_otp is None or stored_email is None:
         return None
     # secrets.compare_digest защищает от timing-атак
     if not secrets.compare_digest(stored_otp, code):
         return None
     # Удаляем ключи одной командой — код одноразовый
-    client.delete(otp_key, email_key)
+    cache.delete_many([otp_key, email_key])
     return stored_email
 
 
@@ -186,20 +178,19 @@ _PASSWORD_RESET_TTL = 300
 
 
 def generate_and_store_password_reset_otp(user_id: int) -> str:
-    """Генерирует OTP для смены пароля и сохраняет его в Redis."""
+    """Генерирует OTP для смены пароля и сохраняет его в кэше."""
     code = f"{secrets.randbelow(1_000_000):06d}"
-    _get_redis().setex(f"password_reset_otp:{user_id}", _PASSWORD_RESET_TTL, code)
+    cache.set(f"password_reset_otp:{user_id}", code, timeout=_PASSWORD_RESET_TTL)
     return code
 
 
 def verify_and_consume_password_reset_otp(user_id: int, code: str) -> bool:
     """Проверяет OTP смены пароля и удаляет его при успехе."""
-    client = _get_redis()
     key = f"password_reset_otp:{user_id}"
-    stored = client.get(key)
+    stored: str | None = cache.get(key)
     # secrets.compare_digest защищает от timing-атак
     if stored is not None and secrets.compare_digest(stored, code):
-        client.delete(key)
+        cache.delete(key)
         return True
     return False
 
