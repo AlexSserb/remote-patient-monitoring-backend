@@ -5,17 +5,23 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from users.services import (
     blacklist_refresh_token,
     create_pre_auth_token,
     decode_pre_auth_token,
+    generate_and_store_email_change_otp,
     generate_and_store_otp,
     issue_token_pair,
     rotate_refresh_token,
+    send_email_change_otp,
     send_otp_email,
+    verify_and_consume_email_change_otp,
     verify_and_consume_otp,
+    verify_and_consume_password_reset_otp,
 )
 
 UserModel = get_user_model()
@@ -93,7 +99,81 @@ class UserProfileSerializer(serializers.ModelSerializer):
         """Метаданные сериализатора профиля."""
 
         model = UserModel
-        fields = ["id", "email", "first_name", "last_name", "role", "date_joined"]
+        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name", "role", "date_joined"]
+
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    """Сериализатор обновления имени и фамилии пользователя."""
+
+    class Meta:
+        """Метаданные сериализатора обновления профиля."""
+
+        model = UserModel
+        fields: ClassVar[list[str]] = ["first_name", "last_name"]
+
+
+class EmailChangeRequestSerializer(serializers.Serializer):
+    """Сериализатор запроса на смену email: проверяет уникальность и отправляет OTP на новый адрес."""
+
+    new_email = serializers.EmailField()
+
+    def validate_new_email(self, value: str) -> str:
+        """Проверяет, что новый email не занят другим пользователем."""
+        if UserModel.objects.filter(email=value).exists():
+            msg = "Пользователь с таким email уже существует."
+            raise serializers.ValidationError(msg, code="email_taken")
+        return value
+
+    def save(self, **kwargs: Any) -> dict[str, str]:
+        """Генерирует OTP и отправляет его на новый email; возвращает пустой словарь."""
+        user: Any = kwargs["user"]
+        new_email: str = self.validated_data["new_email"]
+        otp = generate_and_store_email_change_otp(user.pk, new_email)
+        send_email_change_otp(new_email, otp)
+        return {}
+
+
+class EmailChangeVerifySerializer(serializers.Serializer):
+    """Сериализатор подтверждения смены email: проверяет OTP и применяет новый адрес."""
+
+    otp = serializers.CharField(min_length=6, max_length=6)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Проверяет OTP и сохраняет новый email в validated_data для последующего применения."""
+        user: Any = self.context["user"]
+        new_email = verify_and_consume_email_change_otp(user.pk, attrs["otp"])
+        if new_email is None:
+            msg = "Неверный или истёкший код подтверждения."
+            raise serializers.ValidationError(msg, code="invalid_otp")
+        # Повторная проверка уникальности: другой пользователь мог занять адрес за время TTL
+        if UserModel.objects.filter(email=new_email).exists():
+            msg = "Пользователь с таким email уже существует."
+            raise serializers.ValidationError(msg, code="email_taken")
+        attrs["new_email"] = new_email
+        return attrs
+
+
+class PasswordResetVerifySerializer(serializers.Serializer):
+    """Сериализатор подтверждения смены пароля: проверяет OTP и устанавливает новый пароль."""
+
+    otp = serializers.CharField(min_length=6, max_length=6)
+    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+    def validate_new_password(self, value: str) -> str:
+        """Проверяет новый пароль через стандартные валидаторы Django."""
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Верифицирует OTP и возвращает атрибуты для последующей установки пароля."""
+        user: Any = self.context["user"]
+        if not verify_and_consume_password_reset_otp(user.pk, attrs["otp"]):
+            msg = "Неверный или истёкший код подтверждения."
+            raise serializers.ValidationError(msg, code="invalid_otp")
+        return attrs
 
 
 class LogoutSerializer(serializers.Serializer):
