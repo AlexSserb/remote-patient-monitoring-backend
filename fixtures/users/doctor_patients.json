@@ -1,0 +1,83 @@
+[
+  {
+    "model": "users.doctorpatient",
+    "pk": 1,
+    "fields": {
+      "doctor": 1,
+      "patient": 5,
+      "assigned_at": "2026-02-20T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 2,
+    "fields": {
+      "doctor": 1,
+      "patient": 6,
+      "assigned_at": "2026-02-20T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 3,
+    "fields": {
+      "doctor": 1,
+      "patient": 7,
+      "assigned_at": "2026-02-21T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 4,
+    "fields": {
+      "doctor": 1,
+      "patient": 8,
+      "assigned_at": "2026-02-21T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 5,
+    "fields": {
+      "doctor": 1,
+      "patient": 9,
+      "assigned_at": "2026-02-22T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 6,
+    "fields": {
+      "doctor": 2,
+      "patient": 7,
+      "assigned_at": "2026-03-01T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 7,
+    "fields": {
+      "doctor": 2,
+      "patient": 8,
+      "assigned_at": "2026-03-01T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 8,
+    "fields": {
+      "doctor": 2,
+      "patient": 10,
+      "assigned_at": "2026-03-02T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.doctorpatient",
+    "pk": 9,
+    "fields": {
+      "doctor": 2,
+      "patient": 11,
+      "assigned_at": "2026-03-02T10:00:00.000Z"
+    }
+  }
+]

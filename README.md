@@ -120,23 +120,35 @@ tests/
 - **Опекун 2** прикреплён к Петрову, Козлову, Фёдорову.
 - Новиков (pk=12) — пациент без доктора и без опекуна.
 
-### Применение фикстур
+### Структура фикстур
 
-> **Важно:** `loaddata` использует `INSERT OR REPLACE` по первичному ключу.
-> Существующие записи с совпадающими PK будут перезаписаны.
+Файлы сгруппированы по приложению, каждый файл — одна модель Django:
 
-```bash
-# Применить тестовые данные
-uv run python manage.py loaddata fixtures/test_data.json
+```
+fixtures/
+└── users/
+    ├── users.json              # users.User — все роли
+    ├── doctor_patients.json    # users.DoctorPatient — связи доктор → пациент
+    └── caregiver_patients.json # users.CaregiverPatient — связи опекун → пациент
 ```
 
-Если нужно начать с чистой базы (например, при повторном применении после изменений):
+`FIXTURE_DIRS` в `settings.py` указывает на `fixtures/users/`, поэтому файлы можно адресовать по имени без пути.
+
+### Применение фикстур
+
+> **Важно:** фикстуры нужно загружать в порядке: сначала пользователи, затем связи — из-за FK-зависимостей.
+
+**Через Make (рекомендуется):**
 
 ```bash
-# Сбросить БД и заново применить миграции + фикстуры
-uv run python manage.py flush --no-input
-uv run python manage.py migrate
-uv run python manage.py loaddata fixtures/test_data.json
+make load-fixtures   # загрузить тестовые данные (перезапишет записи с совпадающими PK)
+make reset-db        # flush + migrate + load-fixtures
+```
+
+**Вручную:**
+
+```bash
+uv run python manage.py loaddata users doctor_patients caregiver_patients
 ```
 
 ## Проверка качества кода

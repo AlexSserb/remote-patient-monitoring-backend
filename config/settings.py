@@ -103,6 +103,9 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 
+# Директории для поиска фикстур по имени файла (без указания полного пути в loaddata)
+FIXTURE_DIRS = [BASE_DIR / "fixtures" / "users"]
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
