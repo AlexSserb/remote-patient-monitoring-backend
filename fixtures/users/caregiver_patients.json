@@ -1,0 +1,56 @@
+[
+  {
+    "model": "users.caregiverpatient",
+    "pk": 1,
+    "fields": {
+      "caregiver": 3,
+      "patient": 5,
+      "assigned_at": "2026-03-05T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.caregiverpatient",
+    "pk": 2,
+    "fields": {
+      "caregiver": 3,
+      "patient": 7,
+      "assigned_at": "2026-03-05T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.caregiverpatient",
+    "pk": 3,
+    "fields": {
+      "caregiver": 3,
+      "patient": 9,
+      "assigned_at": "2026-03-06T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.caregiverpatient",
+    "pk": 4,
+    "fields": {
+      "caregiver": 4,
+      "patient": 6,
+      "assigned_at": "2026-03-08T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.caregiverpatient",
+    "pk": 5,
+    "fields": {
+      "caregiver": 4,
+      "patient": 8,
+      "assigned_at": "2026-03-08T10:00:00.000Z"
+    }
+  },
+  {
+    "model": "users.caregiverpatient",
+    "pk": 6,
+    "fields": {
+      "caregiver": 4,
+      "patient": 10,
+      "assigned_at": "2026-03-09T10:00:00.000Z"
+    }
+  }
+]

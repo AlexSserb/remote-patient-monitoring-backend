@@ -188,3 +188,16 @@ class LogoutSerializer(serializers.Serializer):
         except ValueError as exc:
             raise serializers.ValidationError(str(exc), code="invalid_refresh_token") from exc
         return attrs
+
+
+class PatientListItemSerializer(serializers.ModelSerializer):
+    """Сериализатор элемента списка пациентов: основные поля и количество опекунов."""
+
+    # Поле заполняется аннотацией Count на уровне queryset
+    caregiver_count = serializers.IntegerField()
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = UserModel
+        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name", "date_joined", "caregiver_count"]

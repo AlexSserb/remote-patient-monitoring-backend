@@ -2,11 +2,73 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 
-from apps.users.models import User
+from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
+
+if TYPE_CHECKING:
+    from django.contrib.admin.options import InlineModelAdmin
+    from django.http import HttpRequest
+
+
+class DoctorPatientsInline(admin.TabularInline):
+    """Список пациентов, прикреплённых к доктору."""
+
+    model = DoctorPatient
+    fk_name = "doctor"
+    extra = 0
+    raw_id_fields = ("patient",)
+    readonly_fields = ("assigned_at",)
+    verbose_name = "Пациент"
+    verbose_name_plural = "Пациенты"
+
+
+class PatientDoctorsInline(admin.TabularInline):
+    """Список докторов, наблюдающих пациента."""
+
+    model = DoctorPatient
+    fk_name = "patient"
+    extra = 0
+    raw_id_fields = ("doctor",)
+    readonly_fields = ("assigned_at",)
+    verbose_name = "Доктор"
+    verbose_name_plural = "Доктора"
+
+
+class PatientCaregiversInline(admin.TabularInline):
+    """Список опекунов, прикреплённых к пациенту."""
+
+    model = CaregiverPatient
+    fk_name = "patient"
+    extra = 0
+    raw_id_fields = ("caregiver",)
+    readonly_fields = ("assigned_at",)
+    verbose_name = "Опекун"
+    verbose_name_plural = "Опекуны"
+
+
+class CaregiverPatientsInline(admin.TabularInline):
+    """Список пациентов, за которыми наблюдает опекун."""
+
+    model = CaregiverPatient
+    fk_name = "caregiver"
+    extra = 0
+    raw_id_fields = ("patient",)
+    readonly_fields = ("assigned_at",)
+    verbose_name = "Пациент"
+    verbose_name_plural = "Пациенты"
+
+
+# Соответствие роли пользователя набору инлайнов на странице редактирования
+_ROLE_INLINES: dict[str, list[type[InlineModelAdmin]]] = {
+    Role.DOCTOR: [DoctorPatientsInline],
+    Role.PATIENT: [PatientDoctorsInline, PatientCaregiversInline],
+    Role.CAREGIVER: [CaregiverPatientsInline],
+}
 
 
 @admin.register(User)
@@ -35,6 +97,12 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     )
+
+    def get_inlines(self, request: HttpRequest, obj: User | None) -> list[type[InlineModelAdmin]]:  # noqa: ARG002
+        """Возвращает инлайны связей в зависимости от роли редактируемого пользователя."""
+        if obj is None:
+            return []
+        return _ROLE_INLINES.get(obj.role, [])
 
 
 admin.site.unregister(Group)

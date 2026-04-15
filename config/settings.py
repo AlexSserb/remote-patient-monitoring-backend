@@ -103,6 +103,9 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 
+# Директории для поиска фикстур по имени файла (без указания полного пути в loaddata)
+FIXTURE_DIRS = [BASE_DIR / "fixtures" / "users"]
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -128,7 +131,7 @@ SIMPLE_JWT = {
     "JTI_CLAIM": "jti",
 }
 
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.environ["MAIL_SERVER"]
 EMAIL_PORT = int(os.environ["MAIL_PORT"])
 EMAIL_USE_SSL = os.getenv("MAIL_USE_SSL", "False") == "True"

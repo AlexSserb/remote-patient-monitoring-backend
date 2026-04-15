@@ -1,0 +1,218 @@
+[
+  {
+    "model": "users.user",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$1FLk3LEH2otzClLgdW3CTq$OA2HskrPd8HBYg3McOMGc635vrXBt0nLPrFkY0T4t3I=",
+      "last_login": "2026-04-14T20:34:26.166Z",
+      "is_superuser": true,
+      "email": "aserbin190@gmail.com",
+      "first_name": "Александр",
+      "last_name": "Сербин",
+      "role": "doctor",
+      "is_active": true,
+      "is_staff": true,
+      "date_joined": "2026-04-09T13:38:22.267Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 2,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "doctor2@endo.test",
+      "first_name": "Елена",
+      "last_name": "Воронова",
+      "role": "doctor",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-10T09:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 3,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "caregiver1@endo.test",
+      "first_name": "Надежда",
+      "last_name": "Орлова",
+      "role": "caregiver",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-15T10:30:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 4,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "caregiver2@endo.test",
+      "first_name": "Андрей",
+      "last_name": "Беляев",
+      "role": "caregiver",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-20T11:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 5,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "ivanova@endo.test",
+      "first_name": "Мария",
+      "last_name": "Иванова",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-01-05T08:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 6,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "petrov@endo.test",
+      "first_name": "Дмитрий",
+      "last_name": "Петров",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-01-12T09:15:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 7,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "sidorova@endo.test",
+      "first_name": "Ольга",
+      "last_name": "Сидорова",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-01-18T10:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 8,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "kozlov@endo.test",
+      "first_name": "Сергей",
+      "last_name": "Козлов",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-01-25T14:30:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 9,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "smirnova@endo.test",
+      "first_name": "Татьяна",
+      "last_name": "Смирнова",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-01T08:45:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 10,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "fedorov@endo.test",
+      "first_name": "Алексей",
+      "last_name": "Фёдоров",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-03T11:20:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 11,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "morozova@endo.test",
+      "first_name": "Ирина",
+      "last_name": "Морозова",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-07T13:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 12,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8AYa7RMrsWnSL6PzrdUmDh$odn7LNLqGR4shYxhHWZ03G7tjatufdu7JNgzXr5ldcI=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "novikov@endo.test",
+      "first_name": "Виктор",
+      "last_name": "Новиков",
+      "role": "patient",
+      "is_active": true,
+      "is_staff": false,
+      "date_joined": "2026-02-14T16:00:00.000Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  }
+]

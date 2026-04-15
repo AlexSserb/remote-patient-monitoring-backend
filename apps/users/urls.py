@@ -6,6 +6,7 @@ from django.urls import path
 
 from apps.users.views import (
     get_user,
+    list_patients,
     login,
     logout,
     request_email_change,
@@ -26,4 +27,5 @@ urlpatterns = [
     path("<int:user_id>/email-change/verify/", verify_email_change, name="email-change-verify"),
     path("<int:user_id>/password-reset/", request_password_reset, name="password-reset-request"),
     path("<int:user_id>/password-reset/verify/", verify_password_reset, name="password-reset-verify"),
+    path("patients/", list_patients, name="patients-list"),
 ]

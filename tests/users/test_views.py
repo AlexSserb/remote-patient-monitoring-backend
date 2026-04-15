@@ -7,7 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from apps.users.models import User
+from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
 from apps.users.services import (
     create_pre_auth_token,
     generate_and_store_email_change_otp,
@@ -276,3 +276,159 @@ class TestPasswordReset:
             {"otp": "000000", "new_password": "BrandNewPass789!"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+# ---------------------------------------------------------------------------
+# Список пациентов
+# ---------------------------------------------------------------------------
+
+
+class TestListPatients:
+    """Тесты эндпоинта списка пациентов для докторов и опекунов."""
+
+    @pytest.fixture(autouse=True)
+    def setup_users(self, db: None) -> None:
+        """Создаёт доктора, второго доктора, опекуна и двух пациентов для тестов."""
+        self.doctor = User.objects.create_user(
+            email="doctor@example.com",
+            password="Pass123!",
+            first_name="Доктор",
+            last_name="Докторов",
+            role=Role.DOCTOR,
+        )
+        self.other_doctor = User.objects.create_user(
+            email="doctor2@example.com",
+            password="Pass123!",
+            first_name="Другой",
+            last_name="Доктор",
+            role=Role.DOCTOR,
+        )
+        self.caregiver = User.objects.create_user(
+            email="caregiver@example.com",
+            password="Pass123!",
+            first_name="Опекун",
+            last_name="Опекунов",
+            role=Role.CAREGIVER,
+        )
+        # patient1 прикреплён к doctor и caregiver
+        self.patient1 = User.objects.create_user(
+            email="patient1@example.com",
+            password="Pass123!",
+            first_name="Пациент",
+            last_name="Первый",
+            role=Role.PATIENT,
+        )
+        # patient2 прикреплён к doctor, без опекуна
+        self.patient2 = User.objects.create_user(
+            email="patient2@example.com",
+            password="Pass123!",
+            first_name="Пациент",
+            last_name="Второй",
+            role=Role.PATIENT,
+        )
+        # patient3 не прикреплён ни к одному доктору
+        self.patient3 = User.objects.create_user(
+            email="patient3@example.com",
+            password="Pass123!",
+            first_name="Пациент",
+            last_name="Третий",
+            role=Role.PATIENT,
+        )
+
+        DoctorPatient.objects.create(doctor=self.doctor, patient=self.patient1)
+        DoctorPatient.objects.create(doctor=self.doctor, patient=self.patient2)
+        CaregiverPatient.objects.create(caregiver=self.caregiver, patient=self.patient1)
+
+    def _auth_client(self, user: User) -> APIClient:
+        """Возвращает аутентифицированный клиент для заданного пользователя."""
+        client = APIClient()
+        tokens = issue_token_pair(user)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        return client
+
+    def test_doctor_sees_all_patients_by_default(self) -> None:
+        """Доктор по умолчанию видит всех пациентов системы."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 3
+
+    def test_doctor_attached_filter_returns_only_assigned_patients(self) -> None:
+        """Фильтр attached=true возвращает только прикреплённых к доктору пациентов."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"attached": "true"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 2
+        ids = {r["id"] for r in response.data["results"]}
+        assert ids == {self.patient1.pk, self.patient2.pk}
+
+    def test_other_doctor_attached_filter_returns_empty(self) -> None:
+        """Доктор без прикреплённых пациентов получает пустой список при attached=true."""
+        response = self._auth_client(self.other_doctor).get(reverse("patients-list"), {"attached": "true"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 0
+
+    def test_caregiver_sees_only_attached_patients(self) -> None:
+        """Опекун видит только своих прикреплённых пациентов."""
+        response = self._auth_client(self.caregiver).get(reverse("patients-list"))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == self.patient1.pk
+
+    def test_caregiver_attached_param_is_ignored(self) -> None:
+        """Параметр attached не влияет на результат для опекуна."""
+        response_default = self._auth_client(self.caregiver).get(reverse("patients-list"))
+        response_attached = self._auth_client(self.caregiver).get(reverse("patients-list"), {"attached": "true"})
+        assert response_default.data["count"] == response_attached.data["count"]
+
+    def test_has_caregiver_yes_filter(self) -> None:
+        """Фильтр has_caregiver=yes возвращает только пациентов с опекуном."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"has_caregiver": "yes"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == self.patient1.pk
+
+    def test_has_caregiver_no_filter(self) -> None:
+        """Фильтр has_caregiver=no возвращает только пациентов без опекуна."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"has_caregiver": "no"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 2
+        ids = {r["id"] for r in response.data["results"]}
+        assert ids == {self.patient2.pk, self.patient3.pk}
+
+    def test_caregiver_count_field_is_correct(self) -> None:
+        """Поле caregiver_count отражает реальное количество опекунов пациента."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"))
+        assert response.status_code == status.HTTP_200_OK
+        results_by_id = {r["id"]: r for r in response.data["results"]}
+        assert results_by_id[self.patient1.pk]["caregiver_count"] == 1
+        assert results_by_id[self.patient2.pk]["caregiver_count"] == 0
+        assert results_by_id[self.patient3.pk]["caregiver_count"] == 0
+
+    def test_pagination_page_size(self) -> None:
+        """Параметр page_size ограничивает количество результатов в ответе."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"page_size": "1"})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 1
+        assert response.data["count"] == 3
+
+    def test_pagination_second_page(self) -> None:
+        """Вторая страница возвращает следующий срез результатов."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"page": "2", "page_size": "2"})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 1
+
+    def test_response_contains_expected_fields(self) -> None:
+        """Ответ содержит все обязательные поля пациента."""
+        response = self._auth_client(self.doctor).get(reverse("patients-list"), {"attached": "true"})
+        assert response.status_code == status.HTTP_200_OK
+        item = response.data["results"][0]
+        assert {"id", "email", "first_name", "last_name", "date_joined", "caregiver_count"} <= item.keys()
+
+    def test_patient_cannot_access_endpoint(self) -> None:
+        """Пациент не имеет доступа к списку пациентов."""
+        response = self._auth_client(self.patient1).get(reverse("patients-list"))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_unauthenticated_request_returns_401(self, api_client: APIClient) -> None:
+        """Неаутентифицированный запрос возвращает 401."""
+        response = api_client.get(reverse("patients-list"))
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED

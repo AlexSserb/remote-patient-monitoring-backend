@@ -5,19 +5,23 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from django.db.models import Count, Q
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.users.models import Role
 from apps.users.serializers import (
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
     LoginSerializer,
     LogoutSerializer,
     PasswordResetVerifySerializer,
+    PatientListItemSerializer,
     TokenRefreshSerializer,
     UpdateProfileSerializer,
     UserProfileSerializer,
@@ -211,3 +215,89 @@ def verify_password_reset(request: Request, user_id: int) -> Response:
     user.set_password(serializer.validated_data["new_password"])
     user.save(update_fields=["password"])
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    operation_id="users_patients_list",
+    parameters=[
+        OpenApiParameter(
+            name="attached",
+            type=bool,
+            required=False,
+            description="Только прикреплённые к текущему доктору пациенты. Для опекунов игнорируется.",
+        ),
+        OpenApiParameter(
+            name="has_caregiver",
+            type=str,
+            enum=["all", "yes", "no"],
+            required=False,
+            description="Фильтр по наличию опекуна: all — все, yes — есть опекун, no — нет опекуна.",
+        ),
+        OpenApiParameter(
+            name="search",
+            type=str,
+            required=False,
+            description="Поиск по имени, фамилии или email пациента (регистронезависимый).",
+        ),
+        OpenApiParameter(name="page", type=int, required=False, description="Номер страницы (начиная с 1)."),
+        OpenApiParameter(name="page_size", type=int, required=False, description="Количество записей на странице."),
+    ],
+    responses={
+        200: inline_serializer(
+            name="PatientListResponse",
+            fields={
+                "count": drf_serializers.IntegerField(),
+                "results": PatientListItemSerializer(many=True),
+            },
+        ),
+        403: OpenApiResponse(description="Доступ запрещён — только для докторов и опекунов"),
+    },
+    summary="Список пациентов",
+    tags=["users"],
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_patients(request: Request) -> Response:
+    """Возвращает постраничный список пациентов с количеством опекунов для доктора или опекуна."""
+    user = request.user
+    if user.role not in (Role.DOCTOR, Role.CAREGIVER):
+        raise PermissionDenied
+
+    qs = UserModel.objects.filter(role=Role.PATIENT).annotate(
+        # distinct=True защищает от дублей строк при последующих JOIN-фильтрах
+        caregiver_count=Count("patient_caregivers", distinct=True),
+    )
+
+    if user.role == Role.DOCTOR:
+        attached_param = request.query_params.get("attached", "false").lower()
+        if attached_param == "true":
+            qs = qs.filter(patient_doctors__doctor=user)
+    else:
+        # Опекун видит только своих пациентов
+        qs = qs.filter(patient_caregivers__caregiver=user)
+
+    has_caregiver = request.query_params.get("has_caregiver", "all")
+    if has_caregiver == "yes":
+        qs = qs.filter(caregiver_count__gt=0)
+    elif has_caregiver == "no":
+        qs = qs.filter(caregiver_count=0)
+
+    search = request.query_params.get("search", "").strip()
+    if search:
+        qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+
+    total = qs.count()
+
+    try:
+        page = max(1, int(request.query_params.get("page", 1)))
+        page_size = min(100, max(1, int(request.query_params.get("page_size", 20))))
+    except ValueError:
+        page, page_size = 1, 20
+
+    start = (page - 1) * page_size
+    patients = qs.order_by("last_name", "first_name")[start : start + page_size]
+
+    return Response(
+        {"count": total, "results": PatientListItemSerializer(patients, many=True).data},
+        status=status.HTTP_200_OK,
+    )

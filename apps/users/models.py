@@ -51,3 +51,65 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_full_name(self) -> str:
         """Возвращает полное имя пользователя."""
         return f"{self.first_name} {self.last_name}".strip()
+
+
+class DoctorPatient(models.Model):
+    """Связь между доктором и пациентом в системе мониторинга."""
+
+    doctor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="doctor_patients",
+        limit_choices_to={"role": Role.DOCTOR},
+        verbose_name="Доктор",
+    )
+    patient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="patient_doctors",
+        limit_choices_to={"role": Role.PATIENT},
+        verbose_name="Пациент",
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата назначения")
+
+    class Meta:
+        """Метаданные модели связи доктор-пациент."""
+
+        verbose_name = "Связь доктор-пациент"
+        verbose_name_plural = "Связи доктор-пациент"
+        unique_together = ("doctor", "patient")
+
+    def __str__(self) -> str:
+        """Возвращает строковое представление связи доктор-пациент."""
+        return f"{self.doctor} → {self.patient}"
+
+
+class CaregiverPatient(models.Model):
+    """Связь между опекуном и пациентом в системе мониторинга."""
+
+    caregiver = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="caregiver_patients",
+        limit_choices_to={"role": Role.CAREGIVER},
+        verbose_name="Опекун",
+    )
+    patient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="patient_caregivers",
+        limit_choices_to={"role": Role.PATIENT},
+        verbose_name="Пациент",
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата назначения")
+
+    class Meta:
+        """Метаданные модели связи опекун-пациент."""
+
+        verbose_name = "Связь опекун-пациент"
+        verbose_name_plural = "Связи опекун-пациент"
+        unique_together = ("caregiver", "patient")
+
+    def __str__(self) -> str:
+        """Возвращает строковое представление связи опекун-пациент."""
+        return f"{self.caregiver} → {self.patient}"
