@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # Внутренние
     "apps.users",
+    "apps.chats",
 ]
 
 MIDDLEWARE = [
