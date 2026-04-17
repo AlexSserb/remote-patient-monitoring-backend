@@ -94,14 +94,14 @@ class TestListChats:
 
 
 # ---------------------------------------------------------------------------
-# Группы чатов (GET /api/chats/groups/) — доктор и опекун
+# Группы чатов доктора (GET /api/chats/doctor-groups/)
 # ---------------------------------------------------------------------------
 
 
-class TestListChatGroups:
-    """Тесты эндпоинта GET /api/chats/groups/ для докторов и опекунов."""
+class TestListDoctorChatGroups:
+    """Тесты эндпоинта GET /api/chats/doctor-groups/ для докторов."""
 
-    URL = "chats-groups"
+    URL = "chats-doctor-groups"
 
     def test_unauthenticated_returns_401(self, api_client: APIClient) -> None:
         """Неаутентифицированный запрос возвращает 401."""
@@ -109,11 +109,9 @@ class TestListChatGroups:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_patient_returns_403(self, patient_client: APIClient) -> None:
-        """Пациент получает 403 при обращении к группам."""
+        """Пациент получает 403 при обращении к группам доктора."""
         response = patient_client.get(reverse(self.URL))
         assert response.status_code == status.HTTP_403_FORBIDDEN
-
-    # --- Доктор ---
 
     def test_doctor_with_no_patients_returns_empty_list(self, doctor_client: APIClient) -> None:
         """Доктор без пациентов получает пустой список групп."""
@@ -179,7 +177,33 @@ class TestListChatGroups:
         assert "chat_id" in member
         assert "last_message_at" in member
 
-    # --- Опекун ---
+    def test_no_duplicate_chats_on_repeated_signal(self, doctor: User, patient: User) -> None:
+        """Повторный вызов сервиса создания чата не создаёт дубликата."""
+        DoctorPatient.objects.create(doctor=doctor, patient=patient)
+        # Сигнал уже создал чат; вызываем сервис напрямую
+        get_or_create_direct_chat(doctor, patient, patient)
+        assert Chat.objects.filter(participants=doctor).filter(participants=patient).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# Группы чатов опекуна (GET /api/chats/caregiver-groups/)
+# ---------------------------------------------------------------------------
+
+
+class TestListCaregiverChatGroups:
+    """Тесты эндпоинта GET /api/chats/caregiver-groups/ для опекунов."""
+
+    URL = "chats-caregiver-groups"
+
+    def test_unauthenticated_returns_401(self, api_client: APIClient) -> None:
+        """Неаутентифицированный запрос возвращает 401."""
+        response = api_client.get(reverse(self.URL))
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_patient_returns_403(self, patient_client: APIClient) -> None:
+        """Пациент получает 403 при обращении к группам опекуна."""
+        response = patient_client.get(reverse(self.URL))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_caregiver_with_no_patients_returns_empty_list(self, caregiver_client: APIClient) -> None:
         """Опекун без пациентов получает пустой список групп."""
@@ -260,10 +284,3 @@ class TestListChatGroups:
         assert "patient" in group
         assert "doctors" in group
         assert "caregivers" in group
-
-    def test_no_duplicate_chats_on_repeated_signal(self, doctor: User, patient: User) -> None:
-        """Повторный вызов сервиса создания чата не создаёт дубликата."""
-        DoctorPatient.objects.create(doctor=doctor, patient=patient)
-        # Сигнал уже создал чат; вызываем сервис напрямую
-        get_or_create_direct_chat(doctor, patient)
-        assert Chat.objects.filter(participants=doctor).filter(participants=patient).count() == 1
