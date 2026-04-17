@@ -47,11 +47,42 @@ cp .env.example .env
 uv run python manage.py migrate
 ```
 
-### 4. Запустить сервер разработки
+### 4. Запустить сервер
+
+Проект использует WebSocket (Django Channels), поэтому требует **ASGI-сервер** вместо стандартного `runserver`. В качестве ASGI-сервера используется **Daphne** — официальный сервер Django Channels.
+
+#### Разработка
 
 ```bash
 uv run python manage.py runserver
 ```
+
+Поскольку `daphne` добавлен в `INSTALLED_APPS`, Django автоматически использует его как ASGI-сервер вместо стандартного WSGI — WebSocket работает «из коробки».
+
+#### Продакшен
+
+```bash
+uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
+```
+
+Перед Daphne обязательно должен стоять **reverse proxy** (Nginx / Caddy), который:
+- терминирует TLS (HTTPS/WSS),
+- проксирует WebSocket-соединения (`Upgrade: websocket`),
+- раздаёт статику.
+
+Минимальный пример блока Nginx для WebSocket:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
+```
+
+Заголовки `Upgrade` и `Connection` обязательны — без них Nginx разорвёт WebSocket-хэндшейк.
 
 API-документация доступна по адресу `http://localhost:8000/api/docs/`.
 
@@ -107,11 +138,11 @@ tests/
 
 | Роль | Email | Пароль |
 |------|-------|--------|
-| Доктор (суперпользователь) | `aserbin190@gmail.com` | *текущий* |
-| Доктор | `doctor2@endo.test` | `Testpass123!` |
-| Опекун | `caregiver1@endo.test` | `Testpass123!` |
-| Опекун | `caregiver2@endo.test` | `Testpass123!` |
-| Пациенты (8 шт.) | `ivanova@endo.test` … `novikov@endo.test` | `Testpass123!` |
+| Доктор (суперпользователь) | `aserbin190@gmail.com` | `12345678` |
+| Доктор | `doctor2@endo.test` | `12345678` |
+| Опекун | `caregiver1@endo.test` | `12345678` |
+| Опекун | `caregiver2@endo.test` | `12345678` |
+| Пациент 1–8 | `patient1@endo.test` … `patient8@endo.test` | `12345678` |
 
 Связи:
 - **Доктор 1** наблюдает Иванову, Петрова, Сидорову, Козлова, Смирнову.

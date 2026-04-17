@@ -5,6 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "channels>=4.3.2",
+    "channels-redis>=4.3.0",
+    "daphne>=4.2.1",
     "django>=6.0.3",
     "django-cors-headers>=4.9.0",
     "django-filter>=25.2",
@@ -21,6 +24,7 @@ dependencies = [
 dev = [
     "fakeredis>=2.28.0",
     "pytest>=9.0.2",
+    "pytest-asyncio>=0.24.0",
     "pytest-django>=4.12.0",
     "ruff>=0.15.9",
     "ty>=0.0.29",
@@ -28,6 +32,7 @@ dev = [
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.test_settings"
+asyncio_mode = "auto"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
