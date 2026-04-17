@@ -12,7 +12,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from apps.chats.models import Chat, Message
 from apps.chats.serializers import MessageSerializer
-from apps.chats.services import send_message
+from apps.chats.services import edit_message, send_message
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,12 @@ def _create_message(chat: Chat, user: Any, content: str) -> dict:
     # обращается к полям sender, поэтому обновляем объект с нужными данными
     message.sender = user
     return MessageSerializer(message).data
+
+
+@database_sync_to_async
+def _edit_message(message_id: int, chat: Chat, user_id: int, content: str) -> bool:
+    """Редактирует сообщение через сервисный слой."""
+    return edit_message(message_id, chat, user_id, content)
 
 
 @database_sync_to_async
@@ -91,7 +97,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         try:
             payload = json.loads(text_data)
-        except json.JSONDecodeError, AttributeError:
+        except (json.JSONDecodeError, AttributeError):  # fmt: skip
             await self._send_error("invalid_json", "Некорректный формат сообщения.")
             return
 
@@ -100,6 +106,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if msg_type == "delete":
             await self._handle_delete(payload, user)
+        elif msg_type == "edit":
+            await self._handle_edit(payload, user)
         else:
             await self._handle_send(payload, user)
 
@@ -136,6 +144,31 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {"type": "chat.message_deleted", "message_id": message_id},
         )
 
+    async def _handle_edit(self, payload: dict, user: Any) -> None:
+        """Валидирует и применяет редактирование сообщения, рассылает событие участникам."""
+        message_id = payload.get("message_id")
+        if not isinstance(message_id, int):
+            await self._send_error("invalid_message_id", "message_id должен быть целым числом.")
+            return
+
+        content: str = payload.get("content", "").strip()
+        if not content:
+            await self._send_error("empty_content", "Сообщение не может быть пустым.")
+            return
+        if len(content) > 10_000:  # noqa: PLR2004
+            await self._send_error("too_long", "Сообщение превышает допустимую длину.")
+            return
+
+        edited = await _edit_message(message_id, self.chat, user.pk, content)
+        if not edited:
+            await self._send_error("not_found", "Сообщение не найдено или недоступно.")
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {"type": "chat.message_edited", "message_id": message_id, "content": content},
+        )
+
     async def chat_message(self, event: dict) -> None:
         """Обработчик группового события — доставляет сообщение клиенту через WS."""
         await self.send(text_data=json.dumps({"type": "chat.message", "message": event["message"]}))
@@ -143,6 +176,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def chat_message_deleted(self, event: dict) -> None:
         """Обработчик группового события — уведомляет клиента об удалении сообщения."""
         await self.send(text_data=json.dumps({"type": "chat.message_deleted", "message_id": event["message_id"]}))
+
+    async def chat_message_edited(self, event: dict) -> None:
+        """Обработчик группового события — уведомляет клиента о редактировании сообщения."""
+        await self.send(
+            text_data=json.dumps(
+                {"type": "chat.message_edited", "message_id": event["message_id"], "content": event["content"]}
+            )
+        )
 
     async def _send_error(self, code: str, detail: str) -> None:
         """Отправляет клиенту сообщение об ошибке без закрытия соединения."""

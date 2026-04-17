@@ -92,12 +92,13 @@ class MessageSerializer(serializers.ModelSerializer):
 
     sender = MessageSenderSerializer(read_only=True)
     content = serializers.SerializerMethodField()
+    edited = serializers.BooleanField(source="is_edited", read_only=True)
 
     class Meta:
         """Метаданные сериализатора сообщения."""
 
         model = Message
-        fields: ClassVar = ["id", "sender", "content", "is_deleted", "created_at"]
+        fields: ClassVar = ["id", "sender", "content", "is_deleted", "edited", "created_at"]
 
     def get_content(self, obj: Message) -> str | None:
         """Скрывает текст удалённого сообщения."""

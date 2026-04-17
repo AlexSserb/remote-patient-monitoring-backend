@@ -61,6 +61,7 @@ class Message(models.Model):
     )
     content = models.TextField(verbose_name="Текст сообщения")
     is_deleted = models.BooleanField(default=False, verbose_name="Удалено")
+    is_edited = models.BooleanField(default=False, verbose_name="Отредактировано")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата отправки")
 
     class Meta:

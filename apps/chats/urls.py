@@ -6,6 +6,7 @@ from django.urls import path
 
 from apps.chats.views import (
     delete_message,
+    edit_message_view,
     list_caregiver_chat_groups,
     list_chats,
     list_doctor_chat_groups,
@@ -18,4 +19,5 @@ urlpatterns = [
     path("caregiver-groups/", list_caregiver_chat_groups, name="chats-caregiver-groups"),
     path("<int:chat_id>/messages/", list_messages, name="chat-messages-list"),
     path("<int:chat_id>/messages/<int:message_id>/", delete_message, name="chat-message-delete"),
+    path("<int:chat_id>/messages/<int:message_id>/edit/", edit_message_view, name="chat-message-edit"),
 ]

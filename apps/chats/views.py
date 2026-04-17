@@ -20,8 +20,9 @@ from apps.chats.serializers import (
     ChatItemSerializer,
     DoctorChatGroupSerializer,
     MessagePageSerializer,
+    MessageSerializer,
 )
-from apps.chats.services import get_messages_page
+from apps.chats.services import edit_message, get_messages_page
 from apps.users.models import Role, User
 
 if TYPE_CHECKING:
@@ -265,3 +266,38 @@ def delete_message(request: Request, chat_id: int, message_id: int) -> Response:
 
     Message.objects.filter(pk=message_id).update(is_deleted=True)
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {"content": {"type": "string"}},
+            "required": ["content"],
+        }
+    },
+    responses={
+        200: MessagePageSerializer,
+        403: OpenApiResponse(description="Нельзя редактировать чужое сообщение или нет доступа к чату"),
+        404: OpenApiResponse(description="Сообщение не найдено или удалено"),
+    },
+    summary="Редактирование сообщения",
+    tags=["chats"],
+)
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def edit_message_view(request: Request, chat_id: int, message_id: int) -> Response:
+    """Обновляет текст сообщения — только отправитель может редактировать своё сообщение."""
+    user = cast("User", request.user)
+    chat = _get_chat_for_participant(chat_id, user)
+
+    content: str = (request.data.get("content") or "").strip()
+    if not content:
+        raise ValidationError({"content": "Текст сообщения не может быть пустым."})
+
+    updated = edit_message(message_id, chat, user.pk, content)
+    if not updated:
+        raise NotFound
+
+    message = Message.objects.select_related("sender").get(pk=message_id)
+    return Response(MessageSerializer(message).data)

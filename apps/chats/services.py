@@ -49,6 +49,18 @@ def send_message(chat: Chat, sender: User, content: str) -> Message:
     return message
 
 
+def edit_message(message_id: int, chat: Chat, user_id: int, content: str) -> bool:
+    """Обновляет текст сообщения и ставит флаг редактирования.
+
+    Редактирование запрещено для удалённых сообщений и чужих сообщений.
+    Возвращает True при успехе, False если сообщение не найдено или недоступно.
+    """
+    updated = Message.objects.filter(pk=message_id, chat=chat, sender_id=user_id, is_deleted=False).update(
+        content=content, is_edited=True
+    )
+    return updated > 0
+
+
 def get_messages_page(chat: Chat, before_id: int | None) -> tuple[list[Message], bool]:
     """Возвращает страницу сообщений и флаг наличия более старых записей.
 
