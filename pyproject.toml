@@ -1,0 +1,82 @@
+[project]
+name = "remote-patient-monitoring-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "channels>=4.3.2",
+    "channels-redis>=4.3.0",
+    "daphne>=4.2.1",
+    "django>=6.0.3",
+    "django-cors-headers>=4.9.0",
+    "django-filter>=25.2",
+    "djangorestframework>=3.17.1",
+    "djangorestframework-simplejwt>=5.4.0",
+    "djangorestframework-stubs>=3.16.9",
+    "drf-spectacular>=0.29.0",
+    "psycopg2-binary>=2.9.11",
+    "python-dotenv>=1.2.2",
+    "redis>=5.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "fakeredis>=2.28.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.24.0",
+    "pytest-django>=4.12.0",
+    "ruff>=0.15.9",
+    "ty>=0.0.29",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.test_settings"
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Конфликты между правилами форматирования docstring
+    "D203",
+    "D213",
+    # Не применимо к русским docstring
+    "D401",
+    "D415",
+    # Конфликты с ruff formatter
+    "COM812",
+    "ISC001",
+    # Кириллические символы в русскоязычных строках и комментариях — ожидаемое поведение
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # Any допустим в **extra_fields паттернах Django-менеджеров
+    "ANN401",
+    # TRY003 требует кастомных классов исключений — избыточно для данного проекта
+    "TRY003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"manage.py" = ["ALL"]
+"*/migrations/*" = ["ALL"]
+"*/tests.py" = ["S101"]
+# ARG001/ARG002: фикстуры pytest используют параметры (db, mailoutbox) как маркеры зависимостей
+# ERA001: секционные разделители в виде комментариев не являются закомментированным кодом
+# TC001-TC003: импорты в тестах не нужно выносить в TYPE_CHECKING
+# UP043: Generator[None, None, None] в фикстурах yield
+"tests/**/*.py" = ["S101", "PLR2004", "S105", "S106", "S108", "ARG001", "ARG002", "ERA001", "TC001", "TC002", "TC003", "UP043"]
+"config/test_settings.py" = ["F401", "F403", "F405"]
+
+[[tool.ty.overrides]]
+# test_settings.py переопределяет переменные из основных настроек через wildcard-импорт:
+# ty некорректно выводит Literal-тип из * импорта, поэтому invalid-assignment отключён для файла
+include = ["config/test_settings.py"]
+rules.invalid-assignment = "ignore"
