@@ -10,7 +10,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
-from apps.chats.models import Chat
+from apps.chats.models import Chat, Message
 from apps.chats.serializers import MessageSerializer
 from apps.chats.services import send_message
 
@@ -42,6 +42,16 @@ def _create_message(chat: Chat, user: Any, content: str) -> dict:
     # обращается к полям sender, поэтому обновляем объект с нужными данными
     message.sender = user
     return MessageSerializer(message).data
+
+
+@database_sync_to_async
+def _delete_message(message_id: int, chat: Chat, user_id: int) -> bool:
+    """Помечает сообщение удалённым, если оно принадлежит пользователю и чату.
+
+    Возвращает True при успехе, False если сообщение не найдено или чужое.
+    """
+    updated = Message.objects.filter(pk=message_id, chat=chat, sender_id=user_id).update(is_deleted=True)
+    return updated > 0
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -81,31 +91,58 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         try:
             payload = json.loads(text_data)
-            content: str = payload.get("content", "").strip()
         except json.JSONDecodeError, AttributeError:
             await self._send_error("invalid_json", "Некорректный формат сообщения.")
             return
 
+        msg_type: str = payload.get("type", "message")
+        user = self.scope["user"]
+
+        if msg_type == "delete":
+            await self._handle_delete(payload, user)
+        else:
+            await self._handle_send(payload, user)
+
+    async def _handle_send(self, payload: dict, user: Any) -> None:
+        """Валидирует и отправляет новое сообщение в чат."""
+        content: str = payload.get("content", "").strip()
         if not content:
             await self._send_error("empty_content", "Сообщение не может быть пустым.")
             return
-
         if len(content) > 10_000:  # noqa: PLR2004
             await self._send_error("too_long", "Сообщение превышает допустимую длину.")
             return
 
-        user = self.scope["user"]
         message_data = await _create_message(self.chat, user, content)
-
-        # Рассылаем сообщение всем участникам группы (включая отправителя)
         await self.channel_layer.group_send(
             self.group_name,
             {"type": "chat.message", "message": message_data},
         )
 
+    async def _handle_delete(self, payload: dict, user: Any) -> None:
+        """Помечает сообщение удалённым и рассылает событие участникам чата."""
+        message_id = payload.get("message_id")
+        if not isinstance(message_id, int):
+            await self._send_error("invalid_message_id", "message_id должен быть целым числом.")
+            return
+
+        deleted = await _delete_message(message_id, self.chat, user.pk)
+        if not deleted:
+            await self._send_error("not_found", "Сообщение не найдено или недоступно.")
+            return
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {"type": "chat.message_deleted", "message_id": message_id},
+        )
+
     async def chat_message(self, event: dict) -> None:
         """Обработчик группового события — доставляет сообщение клиенту через WS."""
         await self.send(text_data=json.dumps({"type": "chat.message", "message": event["message"]}))
+
+    async def chat_message_deleted(self, event: dict) -> None:
+        """Обработчик группового события — уведомляет клиента об удалении сообщения."""
+        await self.send(text_data=json.dumps({"type": "chat.message_deleted", "message_id": event["message_id"]}))
 
     async def _send_error(self, code: str, detail: str) -> None:
         """Отправляет клиенту сообщение об ошибке без закрытия соединения."""

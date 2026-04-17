@@ -91,12 +91,17 @@ class MessageSerializer(serializers.ModelSerializer):
     """Сообщение чата с данными отправителя."""
 
     sender = MessageSenderSerializer(read_only=True)
+    content = serializers.SerializerMethodField()
 
     class Meta:
         """Метаданные сериализатора сообщения."""
 
         model = Message
-        fields: ClassVar = ["id", "sender", "content", "created_at"]
+        fields: ClassVar = ["id", "sender", "content", "is_deleted", "created_at"]
+
+    def get_content(self, obj: Message) -> str | None:
+        """Скрывает текст удалённого сообщения."""
+        return None if obj.is_deleted else obj.content
 
 
 class MessagePageSerializer(serializers.Serializer):

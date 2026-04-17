@@ -60,6 +60,7 @@ class Message(models.Model):
         verbose_name="Отправитель",
     )
     content = models.TextField(verbose_name="Текст сообщения")
+    is_deleted = models.BooleanField(default=False, verbose_name="Удалено")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата отправки")
 
     class Meta:

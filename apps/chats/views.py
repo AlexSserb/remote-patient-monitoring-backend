@@ -237,3 +237,31 @@ def list_messages(request: Request, chat_id: int) -> Response:
     messages, has_more = get_messages_page(chat, before_id)
     serializer = MessagePageSerializer({"results": messages, "has_more": has_more})
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    responses={
+        204: OpenApiResponse(description="Сообщение удалено"),
+        403: OpenApiResponse(description="Нельзя удалить чужое сообщение или нет доступа к чату"),
+        404: OpenApiResponse(description="Сообщение не найдено"),
+    },
+    summary="Удаление сообщения",
+    tags=["chats"],
+)
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_message(request: Request, chat_id: int, message_id: int) -> Response:
+    """Помечает сообщение удалённым — только отправитель может удалить своё сообщение."""
+    user = cast("User", request.user)
+    _get_chat_for_participant(chat_id, user)
+
+    try:
+        message = Message.objects.get(pk=message_id, chat_id=chat_id)
+    except Message.DoesNotExist:
+        raise NotFound from None
+
+    if message.sender_id != user.pk:  # ty: ignore[unresolved-attribute]
+        raise PermissionDenied
+
+    Message.objects.filter(pk=message_id).update(is_deleted=True)
+    return Response(status=status.HTTP_204_NO_CONTENT)
