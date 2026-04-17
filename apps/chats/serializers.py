@@ -6,19 +6,27 @@ from typing import ClassVar
 
 from rest_framework import serializers
 
-from apps.chats.models import Chat
+from apps.chats.models import Chat, Message
+
+
+class LastMessagePreviewSerializer(serializers.Serializer):
+    """Превью последнего сообщения для отображения в списке чатов."""
+
+    content = serializers.CharField()
+    sender_name = serializers.CharField()
 
 
 class ChatItemSerializer(serializers.ModelSerializer):
     """Чат со сведениями о собеседнике — для плоского списка пациента."""
 
     interlocutor = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
 
     class Meta:
         """Метаданные сериализатора чата пациента."""
 
         model = Chat
-        fields: ClassVar = ["id", "interlocutor", "last_message_at", "created_at"]
+        fields: ClassVar = ["id", "interlocutor", "last_message", "last_message_at", "created_at"]
 
     def get_interlocutor(self, obj: Chat) -> dict:
         """Возвращает данные собеседника (не текущего пользователя)."""
@@ -36,15 +44,24 @@ class ChatItemSerializer(serializers.ModelSerializer):
             "role": other.role,
         }
 
+    def get_last_message(self, obj: Chat) -> dict | None:
+        """Возвращает превью последнего сообщения из аннотаций запроса."""
+        content = getattr(obj, "_lm_content", None)
+        if not content:
+            return None
+        sender_name = f"{getattr(obj, '_lm_sender_first', '')} {getattr(obj, '_lm_sender_last', '')}".strip()
+        return {"content": content, "sender_name": sender_name}
+
 
 class ChatGroupMemberSerializer(serializers.Serializer):
-    """Участник группы чатов с id чата и временем последнего сообщения."""
+    """Участник группы чатов с id чата, временем и превью последнего сообщения."""
 
     id = serializers.IntegerField()
     first_name = serializers.CharField()
     last_name = serializers.CharField()
     chat_id = serializers.IntegerField(allow_null=True)
     last_message_at = serializers.DateTimeField(allow_null=True)
+    last_message = LastMessagePreviewSerializer(allow_null=True)
 
 
 class DoctorChatGroupSerializer(serializers.Serializer):
@@ -60,3 +77,30 @@ class CaregiverChatGroupSerializer(serializers.Serializer):
     patient = ChatGroupMemberSerializer()
     doctors = ChatGroupMemberSerializer(many=True)
     caregivers = ChatGroupMemberSerializer(many=True)
+
+
+class MessageSenderSerializer(serializers.Serializer):
+    """Краткие данные отправителя сообщения."""
+
+    id = serializers.IntegerField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    """Сообщение чата с данными отправителя."""
+
+    sender = MessageSenderSerializer(read_only=True)
+
+    class Meta:
+        """Метаданные сериализатора сообщения."""
+
+        model = Message
+        fields: ClassVar = ["id", "sender", "content", "created_at"]
+
+
+class MessagePageSerializer(serializers.Serializer):
+    """Страница сообщений с флагом наличия более старых записей."""
+
+    results = MessageSerializer(many=True)
+    has_more = serializers.BooleanField()

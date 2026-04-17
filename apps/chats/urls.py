@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from django.urls import path
 
-from apps.chats.views import list_chat_groups, list_chats
+from apps.chats.views import list_caregiver_chat_groups, list_chats, list_doctor_chat_groups, list_messages
 
 urlpatterns = [
     path("", list_chats, name="chats-list"),
-    path("groups/", list_chat_groups, name="chats-groups"),
+    path("doctor-groups/", list_doctor_chat_groups, name="chats-doctor-groups"),
+    path("caregiver-groups/", list_caregiver_chat_groups, name="chats-caregiver-groups"),
+    path("<int:chat_id>/messages/", list_messages, name="chat-messages-list"),
 ]

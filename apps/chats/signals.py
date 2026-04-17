@@ -33,11 +33,11 @@ def create_chats_for_doctor_patient(
     doctor = instance.doctor
     patient = instance.patient
 
-    chat, is_new = get_or_create_direct_chat(doctor, patient)
+    chat, is_new = get_or_create_direct_chat(doctor, patient, patient)
     _log_chat(chat, doctor.pk, patient.pk, is_new=is_new)
 
     for cp in CaregiverPatient.objects.filter(patient=patient).select_related("caregiver"):
-        chat, is_new = get_or_create_direct_chat(doctor, cp.caregiver)
+        chat, is_new = get_or_create_direct_chat(doctor, cp.caregiver, patient)
         _log_chat(chat, doctor.pk, cp.caregiver.pk, is_new=is_new)
 
 
@@ -55,16 +55,16 @@ def create_chats_for_caregiver_patient(
     caregiver = instance.caregiver
     patient = instance.patient
 
-    chat, is_new = get_or_create_direct_chat(caregiver, patient)
+    chat, is_new = get_or_create_direct_chat(caregiver, patient, patient)
     _log_chat(chat, caregiver.pk, patient.pk, is_new=is_new)
 
     for dp in DoctorPatient.objects.filter(patient=patient).select_related("doctor"):
-        chat, is_new = get_or_create_direct_chat(caregiver, dp.doctor)
+        chat, is_new = get_or_create_direct_chat(caregiver, dp.doctor, patient)
         _log_chat(chat, caregiver.pk, dp.doctor.pk, is_new=is_new)
 
     other_cps = (
         CaregiverPatient.objects.filter(patient=patient).exclude(caregiver=caregiver).select_related("caregiver")
     )
     for cp in other_cps:
-        chat, is_new = get_or_create_direct_chat(caregiver, cp.caregiver)
+        chat, is_new = get_or_create_direct_chat(caregiver, cp.caregiver, patient)
         _log_chat(chat, caregiver.pk, cp.caregiver.pk, is_new=is_new)
