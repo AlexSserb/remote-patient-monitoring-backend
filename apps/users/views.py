@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
@@ -25,6 +25,7 @@ from apps.users.serializers import (
     TokenRefreshSerializer,
     UpdateProfileSerializer,
     UserProfileSerializer,
+    UserShortSerializer,
     VerifyOTPSerializer,
 )
 from apps.users.services import generate_and_store_password_reset_otp, send_password_reset_otp
@@ -218,6 +219,67 @@ def verify_password_reset(request: Request, user_id: int) -> Response:
 
 
 @extend_schema(
+    responses={200: UserShortSerializer(many=True)},
+    summary="Список докторов",
+    tags=["users"],
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_doctors(request: Request) -> Response:
+    """Возвращает всех докторов системы для использования в фильтрах."""
+    if request.user.role not in (Role.DOCTOR, Role.CAREGIVER):
+        raise PermissionDenied
+    doctors = UserModel.objects.filter(role=Role.DOCTOR).order_by("last_name", "first_name")
+    return Response(UserShortSerializer(doctors, many=True).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    responses={200: UserShortSerializer(many=True)},
+    summary="Список опекунов",
+    tags=["users"],
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_caregivers(request: Request) -> Response:
+    """Возвращает всех опекунов системы для использования в фильтрах."""
+    if request.user.role not in (Role.DOCTOR, Role.CAREGIVER):
+        raise PermissionDenied
+    caregivers = UserModel.objects.filter(role=Role.CAREGIVER).order_by("last_name", "first_name")
+    return Response(UserShortSerializer(caregivers, many=True).data, status=status.HTTP_200_OK)
+
+
+def _filter_patients(qs: QuerySet, request: Request, user: Any) -> QuerySet:
+    """Применяет все фильтры к queryset пациентов на основе параметров запроса."""
+    if user.role == Role.DOCTOR:
+        if request.query_params.get("attached", "false").lower() == "true":
+            qs = qs.filter(patient_doctors__doctor=user)
+    else:
+        # Опекун видит только своих пациентов
+        qs = qs.filter(patient_caregivers__caregiver=user)
+
+    has_caregiver = request.query_params.get("has_caregiver", "all")
+    if has_caregiver == "yes":
+        qs = qs.filter(caregiver_count__gt=0)
+    elif has_caregiver == "no":
+        qs = qs.filter(caregiver_count=0)
+
+    if doctor_ids := request.query_params.getlist("doctors"):
+        qs = qs.filter(patient_doctors__doctor__in=doctor_ids)
+
+    if caregiver_ids := request.query_params.getlist("caregivers"):
+        qs = qs.filter(patient_caregivers__caregiver__in=caregiver_ids)
+
+    if diagnosis_ids := request.query_params.getlist("diagnoses"):
+        qs = qs.filter(diagnoses__diagnosis__in=diagnosis_ids)
+
+    if search := request.query_params.get("search", "").strip():
+        qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+
+    # JOIN-фильтры по спискам могут дублировать строки
+    return qs.distinct()
+
+
+@extend_schema(
     operation_id="users_patients_list",
     parameters=[
         OpenApiParameter(
@@ -238,6 +300,27 @@ def verify_password_reset(request: Request, user_id: int) -> Response:
             type=str,
             required=False,
             description="Поиск по имени, фамилии или email пациента (регистронезависимый).",
+        ),
+        OpenApiParameter(
+            name="doctors",
+            type=int,
+            many=True,
+            required=False,
+            description="Фильтр по докторам (повторяемый параметр): пациенты хотя бы одного из указанных докторов.",
+        ),
+        OpenApiParameter(
+            name="caregivers",
+            type=int,
+            many=True,
+            required=False,
+            description="Фильтр по опекунам (повторяемый параметр): пациенты хотя бы одного из указанных опекунов.",
+        ),
+        OpenApiParameter(
+            name="diagnoses",
+            type=int,
+            many=True,
+            required=False,
+            description="Фильтр по диагнозам (повторяемый параметр): пациенты хотя бы с одним из указанных диагнозов.",
         ),
         OpenApiParameter(name="page", type=int, required=False, description="Номер страницы (начиная с 1)."),
         OpenApiParameter(name="page_size", type=int, required=False, description="Количество записей на странице."),
@@ -272,23 +355,7 @@ def list_patients(request: Request) -> Response:
         )
     )
 
-    if user.role == Role.DOCTOR:
-        attached_param = request.query_params.get("attached", "false").lower()
-        if attached_param == "true":
-            qs = qs.filter(patient_doctors__doctor=user)
-    else:
-        # Опекун видит только своих пациентов
-        qs = qs.filter(patient_caregivers__caregiver=user)
-
-    has_caregiver = request.query_params.get("has_caregiver", "all")
-    if has_caregiver == "yes":
-        qs = qs.filter(caregiver_count__gt=0)
-    elif has_caregiver == "no":
-        qs = qs.filter(caregiver_count=0)
-
-    search = request.query_params.get("search", "").strip()
-    if search:
-        qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+    qs = _filter_patients(qs, request, user)
 
     total = qs.count()
 

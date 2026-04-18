@@ -192,6 +192,16 @@ class LogoutSerializer(serializers.Serializer):
         return attrs
 
 
+class UserShortSerializer(serializers.ModelSerializer):
+    """Краткое представление пользователя для списков фильтрации."""
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = UserModel
+        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name"]
+
+
 class PatientDoctorSerializer(serializers.ModelSerializer):
     """Доктор пациента с полями пользователя верхнего уровня для корректной генерации схемы."""
 
