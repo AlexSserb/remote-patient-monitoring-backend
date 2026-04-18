@@ -116,7 +116,10 @@ USE_TZ = True
 STATIC_URL = "/static/"
 
 # Директории для поиска фикстур по имени файла (без указания полного пути в loaddata)
-FIXTURE_DIRS = [BASE_DIR / "fixtures" / "users"]
+FIXTURE_DIRS = [
+    BASE_DIR / "fixtures" / "users",
+    BASE_DIR / "fixtures" / "diagnoses",
+]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

@@ -263,9 +263,13 @@ def list_patients(request: Request) -> Response:
     if user.role not in (Role.DOCTOR, Role.CAREGIVER):
         raise PermissionDenied
 
-    qs = UserModel.objects.filter(role=Role.PATIENT).annotate(
-        # distinct=True защищает от дублей строк при последующих JOIN-фильтрах
-        caregiver_count=Count("patient_caregivers", distinct=True),
+    qs = (
+        UserModel.objects.filter(role=Role.PATIENT)
+        .prefetch_related("diagnoses__diagnosis", "patient_doctors__doctor", "patient_caregivers__caregiver")
+        .annotate(
+            # distinct=True защищает от дублей строк при последующих JOIN-фильтрах
+            caregiver_count=Count("patient_caregivers", distinct=True),
+        )
     )
 
     if user.role == Role.DOCTOR:

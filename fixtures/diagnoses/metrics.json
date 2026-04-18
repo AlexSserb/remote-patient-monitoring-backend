@@ -1,0 +1,82 @@
+[
+  {
+    "model": "diagnoses.metric",
+    "pk": 1,
+    "fields": {
+      "name": "Глюкоза крови",
+      "code": "BG",
+      "unit": "ммоль/л",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 2,
+    "fields": {
+      "name": "Гликированный гемоглобин",
+      "code": "HBA1C",
+      "unit": "%",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 3,
+    "fields": {
+      "name": "Систолическое давление",
+      "code": "BP_SYS",
+      "unit": "мм рт. ст.",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 4,
+    "fields": {
+      "name": "Диастолическое давление",
+      "code": "BP_DIA",
+      "unit": "мм рт. ст.",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 5,
+    "fields": {
+      "name": "Масса тела",
+      "code": "WEIGHT",
+      "unit": "кг",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 6,
+    "fields": {
+      "name": "Пульс",
+      "code": "PULSE",
+      "unit": "уд/мин",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 7,
+    "fields": {
+      "name": "Тиреотропный гормон",
+      "code": "TSH",
+      "unit": "мМЕ/л",
+      "type": "number"
+    }
+  },
+  {
+    "model": "diagnoses.metric",
+    "pk": 8,
+    "fields": {
+      "name": "Свободный Т4",
+      "code": "T4F",
+      "unit": "пмоль/л",
+      "type": "number"
+    }
+  }
+]

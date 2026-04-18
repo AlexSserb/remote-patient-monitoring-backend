@@ -9,6 +9,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.diagnoses.serializers import PatientDiagnosisSerializer
+from apps.users.models import CaregiverPatient, DoctorPatient
 from apps.users.services import (
     blacklist_refresh_token,
     create_pre_auth_token,
@@ -190,14 +192,57 @@ class LogoutSerializer(serializers.Serializer):
         return attrs
 
 
+class PatientDoctorSerializer(serializers.ModelSerializer):
+    """Доктор пациента с полями пользователя верхнего уровня для корректной генерации схемы."""
+
+    id = serializers.IntegerField(source="doctor.id")
+    email = serializers.EmailField(source="doctor.email")
+    first_name = serializers.CharField(source="doctor.first_name")
+    last_name = serializers.CharField(source="doctor.last_name")
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = DoctorPatient
+        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name"]
+
+
+class PatientCaregiverSerializer(serializers.ModelSerializer):
+    """Опекун пациента с полями пользователя верхнего уровня для корректной генерации схемы."""
+
+    id = serializers.IntegerField(source="caregiver.id")
+    email = serializers.EmailField(source="caregiver.email")
+    first_name = serializers.CharField(source="caregiver.first_name")
+    last_name = serializers.CharField(source="caregiver.last_name")
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = CaregiverPatient
+        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name"]
+
+
 class PatientListItemSerializer(serializers.ModelSerializer):
-    """Сериализатор элемента списка пациентов: основные поля и количество опекунов."""
+    """Сериализатор элемента списка пациентов: основные поля, опекуны, доктора и диагнозы."""
 
     # Поле заполняется аннотацией Count на уровне queryset
     caregiver_count = serializers.IntegerField()
+    diagnoses = PatientDiagnosisSerializer(many=True)
+    doctors = PatientDoctorSerializer(many=True, source="patient_doctors")
+    caregivers = PatientCaregiverSerializer(many=True, source="patient_caregivers")
 
     class Meta:
         """Метаданные сериализатора."""
 
         model = UserModel
-        fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name", "date_joined", "caregiver_count"]
+        fields: ClassVar[list[str]] = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "date_joined",
+            "caregiver_count",
+            "diagnoses",
+            "doctors",
+            "caregivers",
+        ]
