@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     # Внутренние
     "apps.users",
     "apps.chats",
+    "apps.diagnoses",
 ]
 
 MIDDLEWARE = [
