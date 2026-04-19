@@ -14,8 +14,10 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from apps.users.models import Role
+from apps.diagnoses.models import PatientDiagnosis
+from apps.users.models import DoctorPatient, Role
 from apps.users.serializers import (
+    EditPatientSerializer,
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
     LoginSerializer,
@@ -372,3 +374,70 @@ def list_patients(request: Request) -> Response:
         {"count": total, "results": PatientListItemSerializer(patients, many=True).data},
         status=status.HTTP_200_OK,
     )
+
+
+def _sync_patient_diagnoses(patient: Any, diagnosis_ids: list[int], assigned_by: Any) -> None:
+    """Синхронизирует диагнозы пациента: добавляет новые и удаляет отсутствующие в переданном списке."""
+    current_ids = set(PatientDiagnosis.objects.filter(patient=patient).values_list("diagnosis_id", flat=True))
+    new_ids = set(diagnosis_ids)
+    if to_remove := current_ids - new_ids:
+        PatientDiagnosis.objects.filter(patient=patient, diagnosis_id__in=to_remove).delete()
+    if to_add := new_ids - current_ids:
+        PatientDiagnosis.objects.bulk_create(
+            [PatientDiagnosis(patient=patient, diagnosis_id=did, assigned_by=assigned_by) for did in to_add]
+        )
+
+
+def _sync_patient_doctors(patient: Any, doctor_ids: list[int]) -> None:
+    """Синхронизирует список докторов пациента: добавляет новых и удаляет отсутствующих в переданном списке."""
+    current_ids = set(DoctorPatient.objects.filter(patient=patient).values_list("doctor_id", flat=True))
+    new_ids = set(doctor_ids)
+    if to_remove := current_ids - new_ids:
+        DoctorPatient.objects.filter(patient=patient, doctor_id__in=to_remove).delete()
+    if to_add := new_ids - current_ids:
+        DoctorPatient.objects.bulk_create([DoctorPatient(patient=patient, doctor_id=did) for did in to_add])
+
+
+@extend_schema(
+    request=EditPatientSerializer,
+    responses={
+        200: PatientListItemSerializer,
+        403: OpenApiResponse(description="Доступ запрещён — только для прикреплённых докторов"),
+        404: OpenApiResponse(description="Пациент не найден"),
+    },
+    summary="Редактирование пациента доктором",
+    tags=["users"],
+)
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def edit_patient(request: Request, patient_id: int) -> Response:
+    """Обновляет диагнозы и список докторов пациента; доступно только прикреплённому доктору."""
+    user = request.user
+    if user.role != Role.DOCTOR:
+        raise PermissionDenied
+
+    try:
+        patient = UserModel.objects.get(pk=patient_id, role=Role.PATIENT)
+    except UserModel.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if not DoctorPatient.objects.filter(doctor=user, patient=patient).exists():
+        raise PermissionDenied
+
+    serializer = EditPatientSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    if "diagnoses" in data:
+        _sync_patient_diagnoses(patient, data["diagnoses"], assigned_by=user)
+
+    if "doctors" in data:
+        _sync_patient_doctors(patient, data["doctors"])
+
+    updated_patient = (
+        UserModel.objects.filter(pk=patient_id)
+        .prefetch_related("diagnoses__diagnosis", "patient_doctors__doctor", "patient_caregivers__caregiver")
+        .annotate(caregiver_count=Count("patient_caregivers", distinct=True))
+        .get()
+    )
+    return Response(PatientListItemSerializer(updated_patient).data, status=status.HTTP_200_OK)

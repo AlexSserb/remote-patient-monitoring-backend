@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.users.views import (
+    edit_patient,
     get_user,
     list_caregivers,
     list_doctors,
@@ -30,6 +31,7 @@ urlpatterns = [
     path("<int:user_id>/password-reset/", request_password_reset, name="password-reset-request"),
     path("<int:user_id>/password-reset/verify/", verify_password_reset, name="password-reset-verify"),
     path("patients/", list_patients, name="patients-list"),
+    path("patients/<int:patient_id>/", edit_patient, name="patients-edit"),
     path("doctors/", list_doctors, name="doctors-list"),
     path("caregivers/", list_caregivers, name="caregivers-list"),
 ]

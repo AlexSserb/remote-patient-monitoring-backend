@@ -9,8 +9,9 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.diagnoses.models import Diagnosis
 from apps.diagnoses.serializers import PatientDiagnosisSerializer
-from apps.users.models import CaregiverPatient, DoctorPatient
+from apps.users.models import CaregiverPatient, DoctorPatient, Role
 from apps.users.services import (
     blacklist_refresh_token,
     create_pre_auth_token,
@@ -230,6 +231,31 @@ class PatientCaregiverSerializer(serializers.ModelSerializer):
 
         model = CaregiverPatient
         fields: ClassVar[list[str]] = ["id", "email", "first_name", "last_name"]
+
+
+class EditPatientSerializer(serializers.Serializer):
+    """Сериализатор редактирования пациента доктором: синхронизирует диагнозы и прикреплённых докторов."""
+
+    diagnoses = serializers.ListField(child=serializers.IntegerField(), required=False)
+    doctors = serializers.ListField(child=serializers.IntegerField(), required=False)
+
+    def validate_diagnoses(self, value: list[int]) -> list[int]:
+        """Проверяет, что все переданные идентификаторы диагнозов существуют в базе."""
+        existing = set(Diagnosis.objects.filter(pk__in=value).values_list("pk", flat=True))
+        missing = set(value) - existing
+        if missing:
+            msg = f"Diagnoses not found: {sorted(missing)}"
+            raise serializers.ValidationError(msg)
+        return value
+
+    def validate_doctors(self, value: list[int]) -> list[int]:
+        """Проверяет, что все переданные идентификаторы принадлежат пользователям с ролью доктора."""
+        existing = set(UserModel.objects.filter(pk__in=value, role=Role.DOCTOR).values_list("pk", flat=True))
+        missing = set(value) - existing
+        if missing:
+            msg = f"Doctors not found: {sorted(missing)}"
+            raise serializers.ValidationError(msg)
+        return value
 
 
 class PatientListItemSerializer(serializers.ModelSerializer):
