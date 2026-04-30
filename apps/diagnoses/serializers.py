@@ -6,7 +6,7 @@ from typing import ClassVar
 
 from rest_framework import serializers
 
-from apps.diagnoses.models import Diagnosis, PatientDiagnosis
+from apps.diagnoses.models import Diagnosis, DiaryEntry, DiaryEntryValue, Metric, PatientDiagnosis
 
 
 class DiagnosisShortSerializer(serializers.ModelSerializer):
@@ -17,6 +17,72 @@ class DiagnosisShortSerializer(serializers.ModelSerializer):
 
         model = Diagnosis
         fields: ClassVar[list[str]] = ["id", "name", "code"]
+
+
+class DiaryFieldSerializer(serializers.ModelSerializer):
+    """Поле дневника с агрегированными ограничениями по всем диагнозам пациента."""
+
+    is_required = serializers.BooleanField()
+    min_value = serializers.FloatField(allow_null=True)
+    max_value = serializers.FloatField(allow_null=True)
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = Metric
+        fields: ClassVar[list[str]] = ["id", "name", "code", "unit", "type", "is_required", "min_value", "max_value"]
+
+
+class DiaryEntryValueCreateSerializer(serializers.Serializer):
+    """Значение одной метрики в создаваемой или обновляемой записи дневника."""
+
+    metric_id = serializers.IntegerField()
+    value_number = serializers.FloatField(allow_null=True, required=False, default=None)
+    value_text = serializers.CharField(allow_blank=True, required=False, default="")
+    value_boolean = serializers.BooleanField(allow_null=True, required=False, default=None)
+
+
+class DiaryEntryCreateSerializer(serializers.Serializer):
+    """Тело запроса для создания или обновления записи дневника."""
+
+    values = DiaryEntryValueCreateSerializer(many=True)
+
+
+class DiaryEntryValueInfo(serializers.ModelSerializer):
+    """Значение метрики в составе ответа на запрос записи дневника."""
+
+    metric_id = serializers.IntegerField(source="metric.id", read_only=True)
+    metric_name = serializers.CharField(source="metric.name", read_only=True)
+    metric_code = serializers.CharField(source="metric.code", read_only=True)
+    metric_type = serializers.CharField(source="metric.type", read_only=True)
+    metric_unit = serializers.CharField(source="metric.unit", read_only=True)
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = DiaryEntryValue
+        fields: ClassVar[list[str]] = [
+            "metric_id",
+            "metric_name",
+            "metric_code",
+            "metric_type",
+            "metric_unit",
+            "value_number",
+            "value_text",
+            "value_boolean",
+        ]
+
+
+class DiaryEntryInfo(serializers.ModelSerializer):
+    """Запись дневника с вложенными значениями метрик."""
+
+    values = DiaryEntryValueInfo(many=True, read_only=True)
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = DiaryEntry
+        fields: ClassVar[list[str]] = ["id", "created_at", "values"]
 
 
 class PatientDiagnosisSerializer(serializers.ModelSerializer):
