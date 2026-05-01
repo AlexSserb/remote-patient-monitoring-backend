@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.diagnoses.models import Diagnosis, DiaryEntry, DiaryEntryValue, Metric, PatientDiagnosis
@@ -73,16 +74,27 @@ class DiaryEntryValueInfo(serializers.ModelSerializer):
         ]
 
 
+class DiaryEntryAuthorInfo(serializers.ModelSerializer):
+    """Автор записи дневника — пациент или опекун, создавший запись."""
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = get_user_model()
+        fields: ClassVar[list[str]] = ["id", "first_name", "last_name", "role"]
+
+
 class DiaryEntryInfo(serializers.ModelSerializer):
     """Запись дневника с вложенными значениями метрик."""
 
     values = DiaryEntryValueInfo(many=True, read_only=True)
+    author = DiaryEntryAuthorInfo(read_only=True)
 
     class Meta:
         """Метаданные сериализатора."""
 
         model = DiaryEntry
-        fields: ClassVar[list[str]] = ["id", "created_at", "values"]
+        fields: ClassVar[list[str]] = ["id", "created_at", "author", "values"]
 
 
 class PatientDiagnosisSerializer(serializers.ModelSerializer):

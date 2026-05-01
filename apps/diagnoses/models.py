@@ -138,6 +138,14 @@ class DiaryEntry(models.Model):
         limit_choices_to={"role": Role.PATIENT},
         verbose_name="Пациент",
     )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="authored_diary_entries",
+        verbose_name="Автор",
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата записи")
 
     class Meta:

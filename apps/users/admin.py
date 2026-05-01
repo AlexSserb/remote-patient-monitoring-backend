@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -12,6 +12,7 @@ from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
 
 if TYPE_CHECKING:
     from django.contrib.admin.options import InlineModelAdmin
+    from django.db.models import QuerySet
     from django.http import HttpRequest
 
 
@@ -63,6 +64,18 @@ class CaregiverPatientsInline(admin.TabularInline):
     verbose_name_plural = "Пациенты"
 
 
+@admin.action(description="Деактивировать выбранных пользователей")
+def deactivate_users(modeladmin: UserAdmin, request: HttpRequest, queryset: QuerySet[User]) -> None:  # noqa: ARG001
+    """Мягкое удаление: деактивирует пользователей без физического удаления из БД."""
+    queryset.update(is_active=False)
+
+
+@admin.action(description="Активировать выбранных пользователей")
+def activate_users(modeladmin: UserAdmin, request: HttpRequest, queryset: QuerySet[User]) -> None:  # noqa: ARG001
+    """Активирует ранее деактивированных пользователей."""
+    queryset.update(is_active=True)
+
+
 # Соответствие роли пользователя набору инлайнов на странице редактирования
 _ROLE_INLINES: dict[str, list[type[InlineModelAdmin]]] = {
     Role.DOCTOR: [DoctorPatientsInline],
@@ -97,6 +110,12 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     )
+
+    actions: ClassVar = [deactivate_users, activate_users]
+
+    def has_delete_permission(self, request: HttpRequest, obj: User | None = None) -> bool:  # noqa: ARG002
+        """Запрещает физическое удаление пользователей, использует деактивацию."""
+        return False
 
     def get_inlines(self, request: HttpRequest, obj: User | None) -> list[type[InlineModelAdmin]]:  # noqa: ARG002
         """Возвращает инлайны связей в зависимости от роли редактируемого пользователя."""

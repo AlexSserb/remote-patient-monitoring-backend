@@ -206,7 +206,7 @@ class DiaryEntryViewSet(ViewSet):
     def list(self, request: Request) -> Response:
         """Возвращает все записи дневника пациента в обратном хронологическом порядке."""
         patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
-        entries = DiaryEntry.objects.filter(patient=patient).prefetch_related("values__metric")
+        entries = DiaryEntry.objects.filter(patient=patient).select_related("author").prefetch_related("values__metric")
         return Response(DiaryEntryInfo(entries, many=True).data, status=status.HTTP_200_OK)
 
     def create(self, request: Request) -> Response:
@@ -214,7 +214,7 @@ class DiaryEntryViewSet(ViewSet):
         patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
         serializer = DiaryEntryCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        entry = DiaryEntry.objects.create(patient=patient)
+        entry = DiaryEntry.objects.create(patient=patient, author=request.user)
         DiaryEntryValue.objects.bulk_create(
             [
                 DiaryEntryValue(
@@ -227,7 +227,9 @@ class DiaryEntryViewSet(ViewSet):
                 for v in serializer.validated_data["values"]
             ]
         )
-        entry_with_values = DiaryEntry.objects.prefetch_related("values__metric").get(pk=entry.pk)
+        entry_with_values = (
+            DiaryEntry.objects.select_related("author").prefetch_related("values__metric").get(pk=entry.pk)
+        )
         return Response(DiaryEntryInfo(entry_with_values).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request: Request, pk: int | None = None) -> Response:
@@ -246,7 +248,9 @@ class DiaryEntryViewSet(ViewSet):
                     "value_boolean": v.get("value_boolean"),
                 },
             )
-        entry_with_values = DiaryEntry.objects.prefetch_related("values__metric").get(pk=entry.pk)
+        entry_with_values = (
+            DiaryEntry.objects.select_related("author").prefetch_related("values__metric").get(pk=entry.pk)
+        )
         return Response(DiaryEntryInfo(entry_with_values).data, status=status.HTTP_200_OK)
 
     def destroy(self, request: Request, pk: int | None = None) -> Response:
