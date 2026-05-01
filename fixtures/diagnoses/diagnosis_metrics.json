@@ -1,0 +1,87 @@
+[
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 1,
+    "fields": { "diagnosis": 1, "metric": 1, "is_required": true,  "min_value": 3.9,  "max_value": 10.0 }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 2,
+    "fields": { "diagnosis": 1, "metric": 2, "is_required": true,  "min_value": null, "max_value": 7.5  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 3,
+    "fields": { "diagnosis": 1, "metric": 3, "is_required": false, "min_value": 90.0, "max_value": 130.0 }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 4,
+    "fields": { "diagnosis": 1, "metric": 4, "is_required": false, "min_value": 60.0, "max_value": 85.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 5,
+    "fields": { "diagnosis": 1, "metric": 5, "is_required": false, "min_value": null, "max_value": null  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 6,
+    "fields": { "diagnosis": 2, "metric": 1, "is_required": true,  "min_value": 3.9,  "max_value": 10.0 }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 7,
+    "fields": { "diagnosis": 2, "metric": 2, "is_required": true,  "min_value": null, "max_value": 7.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 8,
+    "fields": { "diagnosis": 2, "metric": 3, "is_required": false, "min_value": 90.0, "max_value": 130.0 }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 9,
+    "fields": { "diagnosis": 2, "metric": 4, "is_required": false, "min_value": 60.0, "max_value": 85.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 10,
+    "fields": { "diagnosis": 2, "metric": 5, "is_required": false, "min_value": null, "max_value": null  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 11,
+    "fields": { "diagnosis": 3, "metric": 6, "is_required": true,  "min_value": 60.0, "max_value": 90.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 12,
+    "fields": { "diagnosis": 3, "metric": 7, "is_required": true,  "min_value": 0.1,  "max_value": 0.4   }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 13,
+    "fields": { "diagnosis": 3, "metric": 8, "is_required": true,  "min_value": 12.0, "max_value": 22.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 14,
+    "fields": { "diagnosis": 3, "metric": 5, "is_required": false, "min_value": null, "max_value": null  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 15,
+    "fields": { "diagnosis": 4, "metric": 7, "is_required": true,  "min_value": 0.4,  "max_value": 4.0   }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 16,
+    "fields": { "diagnosis": 4, "metric": 8, "is_required": true,  "min_value": 12.0, "max_value": 22.0  }
+  },
+  {
+    "model": "diagnoses.diagnosismetric",
+    "pk": 17,
+    "fields": { "diagnosis": 4, "metric": 5, "is_required": false, "min_value": null, "max_value": null  }
+  }
+]
