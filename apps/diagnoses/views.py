@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
 from django.db.models import BooleanField, FloatField, IntegerField, Max, Min
@@ -15,14 +17,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
-from apps.diagnoses.models import Diagnosis, DiaryEntry, DiaryEntryValue, Metric
+from apps.diagnoses.models import Diagnosis, DiaryEntry, DiaryEntryValue, Metric, MetricType
 from apps.diagnoses.serializers import (
+    AnalyticsDataPointSerializer,
+    AnalyticsMetricSerializer,
+    AnalyticsResponseSerializer,
     DiagnosisShortSerializer,
     DiaryEntryCreateSerializer,
     DiaryEntryInfo,
     DiaryFieldSerializer,
 )
-from apps.users.models import CaregiverPatient, Role, User
+from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -73,7 +78,7 @@ def list_diary_fields(request: Request) -> Response:
 
     if user.role == Role.PATIENT:
         patient = user
-    elif user.role == Role.CAREGIVER:
+    elif user.role in (Role.CAREGIVER, Role.DOCTOR):
         raw_id = request.query_params.get("patient_id")
         if not raw_id:
             return Response({"detail": "patient_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -81,7 +86,10 @@ def list_diary_fields(request: Request) -> Response:
             patient_id = int(raw_id)
         except ValueError:
             return Response({"detail": "patient_id must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
-        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
+        if user.role == Role.CAREGIVER:
+            if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
+                raise PermissionDenied
+        elif not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
             raise PermissionDenied
         patient = get_object_or_404(User, id=patient_id, role=Role.PATIENT)
     else:
@@ -104,18 +112,21 @@ def list_diary_fields(request: Request) -> Response:
 
 
 def _resolve_patient_for_diary(request: Request, patient_id_raw: str | None) -> User:
-    """Определяет пациента по роли пользователя; опекун обязан передать patient_id."""
+    """Определяет пациента по роли пользователя; доктор и опекун обязаны передать patient_id."""
     user = request.user
     if user.role == Role.PATIENT:
         return user
-    if user.role == Role.CAREGIVER:
+    if user.role in (Role.CAREGIVER, Role.DOCTOR):
         if not patient_id_raw:
-            raise ValidationError({"patient_id": "patient_id is required for caregivers"})
+            raise ValidationError({"patient_id": "patient_id is required"})
         try:
             patient_id = int(patient_id_raw)
         except ValueError:
             raise ValidationError({"patient_id": "patient_id must be an integer"}) from None
-        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
+        if user.role == Role.CAREGIVER:
+            if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
+                raise PermissionDenied
+        elif not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
             raise PermissionDenied
         return get_object_or_404(User, id=patient_id, role=Role.PATIENT)
     raise PermissionDenied
@@ -259,3 +270,133 @@ class DiaryEntryViewSet(ViewSet):
         entry = get_object_or_404(DiaryEntry, pk=pk, patient=patient)
         entry.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _resolve_patient_for_analytics(request: Request) -> User:
+    """Определяет пациента для аналитики; доктор и опекун обязаны передать patient_id."""
+    user = request.user
+
+    if user.role == Role.PATIENT:
+        return user
+
+    raw_id = request.query_params.get("patient_id")
+    if not raw_id:
+        raise ValidationError({"patient_id": "patient_id is required"})
+    try:
+        patient_id = int(raw_id)
+    except ValueError:
+        raise ValidationError({"patient_id": "patient_id must be an integer"}) from None
+
+    if user.role == Role.CAREGIVER:
+        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
+            raise PermissionDenied
+    elif user.role == Role.DOCTOR:
+        if not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
+            raise PermissionDenied
+    else:
+        raise PermissionDenied
+
+    return get_object_or_404(User, id=patient_id, role=Role.PATIENT)
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="patient_id",
+            type=int,
+            location=OpenApiParameter.QUERY,
+            description="ID пациента — обязателен для доктора и опекуна, игнорируется для пациента",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="date_from",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="Начало диапазона дат (YYYY-MM-DD). По умолчанию — 7 дней назад",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="date_to",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="Конец диапазона дат (YYYY-MM-DD). По умолчанию — сегодня",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="metric_ids",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="Через запятую ID метрик для отображения на графике",
+            required=False,
+        ),
+    ],
+    responses={
+        200: AnalyticsResponseSerializer,
+        400: OpenApiResponse(description="Неверный формат параметров"),
+        403: OpenApiResponse(description="Доступ запрещён"),
+        404: OpenApiResponse(description="Пациент не найден"),
+    },
+    summary="Аналитика дневниковых метрик пациента",
+    tags=["diagnoses"],
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_analytics(request: Request) -> Response:
+    """Возвращает числовые метрики пациента и точки данных за выбранный период."""
+    patient = _resolve_patient_for_analytics(request)
+
+    today = datetime.datetime.now(tz=datetime.UTC).date()
+    date_from_str = request.query_params.get("date_from")
+    date_to_str = request.query_params.get("date_to")
+    try:
+        date_from = date.fromisoformat(date_from_str) if date_from_str else today - timedelta(days=7)
+        date_to = date.fromisoformat(date_to_str) if date_to_str else today
+    except ValueError:
+        return Response(
+            {"detail": "Invalid date format. Use YYYY-MM-DD."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    metric_ids_str = request.query_params.get("metric_ids", "")
+    metric_ids: list[int] = []
+    if metric_ids_str:
+        try:
+            metric_ids = [int(mid) for mid in metric_ids_str.split(",") if mid]
+        except ValueError:
+            return Response(
+                {"detail": "metric_ids must be comma-separated integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    available_metrics = (
+        Metric.objects.filter(
+            diagnosis_metrics__diagnosis__patient_diagnoses__patient=patient,
+            type=MetricType.NUMBER,
+        )
+        .distinct()
+        .order_by("name")
+    )
+
+    data_points: list[object] = []
+    if metric_ids:
+        values = (
+            DiaryEntryValue.objects.filter(
+                entry__patient=patient,
+                entry__created_at__date__gte=date_from,
+                entry__created_at__date__lte=date_to,
+                metric_id__in=metric_ids,
+                metric__type=MetricType.NUMBER,
+                value_number__isnull=False,
+            )
+            .select_related("metric", "entry")
+            .order_by("entry__created_at")
+        )
+        data_points = AnalyticsDataPointSerializer(values, many=True).data
+
+    return Response(
+        {
+            "available_metrics": AnalyticsMetricSerializer(available_metrics, many=True).data,
+            "data_points": data_points,
+        },
+        status=status.HTTP_200_OK,
+    )
