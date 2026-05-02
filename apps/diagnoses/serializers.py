@@ -97,6 +97,37 @@ class DiaryEntryInfo(serializers.ModelSerializer):
         fields: ClassVar[list[str]] = ["id", "created_at", "author", "values"]
 
 
+class AnalyticsMetricSerializer(serializers.ModelSerializer):
+    """Метрика, доступная для отображения на графике аналитики."""
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = Metric
+        fields: ClassVar[list[str]] = ["id", "name", "code", "unit"]
+
+
+class AnalyticsDataPointSerializer(serializers.ModelSerializer):
+    """Одна точка данных на графике аналитики — значение метрики в момент записи."""
+
+    metric_id = serializers.IntegerField(source="metric.id")
+    value = serializers.FloatField(source="value_number")
+    date = serializers.DateTimeField(source="entry.created_at")
+
+    class Meta:
+        """Метаданные сериализатора."""
+
+        model = DiaryEntryValue
+        fields: ClassVar[list[str]] = ["date", "metric_id", "value"]
+
+
+class AnalyticsResponseSerializer(serializers.Serializer):
+    """Ответ эндпоинта аналитики: доступные метрики и точки данных за выбранный период."""
+
+    available_metrics = AnalyticsMetricSerializer(many=True)
+    data_points = AnalyticsDataPointSerializer(many=True)
+
+
 class PatientDiagnosisSerializer(serializers.ModelSerializer):
     """Диагноз пациента с полями диагноза верхнего уровня для корректной генерации схемы."""
 
