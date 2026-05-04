@@ -32,9 +32,11 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "channels",
     # Внутренние
+    "django.contrib.postgres",
     "apps.users",
     "apps.chats",
     "apps.diagnoses",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
