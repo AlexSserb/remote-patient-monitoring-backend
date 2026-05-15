@@ -32,6 +32,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True, verbose_name="Активен")
     is_staff = models.BooleanField(default=False, verbose_name="Персонал")
     date_joined = models.DateTimeField(auto_now_add=True, verbose_name="Дата регистрации")
+    timezone = models.CharField(
+        max_length=50,
+        default="UTC",
+        verbose_name="Часовой пояс",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: ClassVar[list[str]] = ["first_name", "last_name", "role"]

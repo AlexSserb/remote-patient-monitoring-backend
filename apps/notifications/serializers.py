@@ -71,6 +71,26 @@ class NotificationScheduleCreateSerializer(serializers.Serializer):
         return value
 
 
+class PushSubscriptionKeysSerializer(serializers.Serializer):
+    """Криптографические ключи push-подписки браузера (P-256 DH и auth-секрет)."""
+
+    p_256dh = serializers.CharField()
+    auth = serializers.CharField()
+
+    def to_internal_value(self, data: dict) -> dict:
+        """Нормализует p_256dh обратно в p256dh, ожидаемый pywebpush."""
+        result = super().to_internal_value(data)
+        result["p256dh"] = result.pop("p_256dh")
+        return result
+
+
+class PushSubscriptionSerializer(serializers.Serializer):
+    """Push-подписка браузера для хранения в NotificationChannelConfig."""
+
+    endpoint = serializers.URLField()
+    keys = PushSubscriptionKeysSerializer()
+
+
 class NotificationScheduleUpdateSerializer(serializers.Serializer):
     """Сериализатор обновления расписания: дни недели, время и признак активности."""
 

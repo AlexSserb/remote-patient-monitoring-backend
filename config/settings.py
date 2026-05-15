@@ -6,6 +6,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,6 +32,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "channels",
+    "django_celery_beat",
+    "django_celery_results",
     # Внутренние
     "django.contrib.postgres",
     "apps.users",
@@ -170,6 +173,25 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+CELERY_BEAT_SCHEDULE = {
+    "scan-and-dispatch-notifications": {
+        "task": "apps.notifications.tasks.scan_and_dispatch",
+        # каждую минуту
+        "schedule": crontab(),
+    },
+}
+
+VAPID_PRIVATE_KEY: str = os.environ["VAPID_PRIVATE_KEY"]
+VAPID_PUBLIC_KEY: str = os.environ["VAPID_PUBLIC_KEY"]
+VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", DEFAULT_FROM_EMAIL)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Remote Patient Monitoring API",

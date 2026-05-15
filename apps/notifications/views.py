@@ -2,70 +2,29 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import logging
+from typing import TYPE_CHECKING
 
-from django.contrib.auth import get_user_model
-from django.db.models import Q, QuerySet
-from django.shortcuts import get_object_or_404
+from django.conf import settings
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from apps.notifications.models import NotificationSchedule
 from apps.notifications.serializers import (
     NotificationScheduleCreateSerializer,
     NotificationScheduleSerializer,
     NotificationScheduleUpdateSerializer,
+    PushSubscriptionSerializer,
 )
-from apps.users.models import CaregiverPatient, DoctorPatient, Role
+from apps.notifications.services import EmailSubscriptionService, PushSubscriptionService, ScheduleService
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
 
-UserModel = get_user_model()
-
-
-def _check_patient_access(user: Any, patient: Any) -> None:
-    """Проверяет право просмотра расписаний пациента: пациент видит только своё, остальные — прикреплённого."""
-    if user.role == Role.PATIENT:
-        if user.pk != patient.pk:
-            raise PermissionDenied
-    elif user.role == Role.CAREGIVER:
-        if not CaregiverPatient.objects.filter(caregiver=user, patient=patient).exists():
-            raise PermissionDenied
-    elif user.role == Role.DOCTOR:
-        if not DoctorPatient.objects.filter(doctor=user, patient=patient).exists():
-            raise PermissionDenied
-    else:
-        raise PermissionDenied
-
-
-def _filter_schedules(user: Any, patient: Any) -> QuerySet[NotificationSchedule]:
-    """Возвращает расписания для пациента с фильтрацией по роли текущего пользователя."""
-    qs = NotificationSchedule.objects.filter(patient=patient).select_related("recipient")
-    if user.role == Role.DOCTOR:
-        return qs
-    if user.role == Role.CAREGIVER:
-        # Опекун видит своё расписание и расписание самого пациента
-        return qs.filter(Q(recipient=user) | Q(recipient=patient))
-    # Пациент видит только своё расписание
-    return qs.filter(recipient=user)
-
-
-def _can_edit_schedule(user: Any, schedule: NotificationSchedule) -> bool:
-    """Проверяет право редактировать расписание: опекун и доктор — через связь с пациентом."""
-    patient_id = schedule.patient_id  # ty: ignore[unresolved-attribute]
-    if user.role == Role.PATIENT:
-        # Пациент редактирует только своё расписание на самого себя
-        return user.pk == schedule.recipient_id and user.pk == patient_id  # ty: ignore[unresolved-attribute]
-    if user.role == Role.CAREGIVER:
-        return CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists()
-    if user.role == Role.DOCTOR:
-        return DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists()
-    return False
+logger = logging.getLogger(__name__)
 
 
 @extend_schema(
@@ -104,56 +63,18 @@ def _can_edit_schedule(user: Any, schedule: NotificationSchedule) -> bool:
 @permission_classes([IsAuthenticated])
 def schedules_list_create(request: Request) -> Response:
     """Возвращает расписания для пациента или создаёт расписание для текущего пользователя."""
-    user = request.user
+    service = ScheduleService()
 
     if request.method == "GET":
         patient_id = request.query_params.get("patient_id")
         if not patient_id:
             return Response({"detail": "patient_id is required."}, status=status.HTTP_400_BAD_REQUEST)
-        patient = get_object_or_404(UserModel, pk=patient_id, role=Role.PATIENT)
-        _check_patient_access(user, patient)
-        schedules = _filter_schedules(user, patient)
+        schedules = service.list_schedules(request.user, int(patient_id))
         return Response(NotificationScheduleSerializer(schedules, many=True).data)
 
     serializer = NotificationScheduleCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-
-    patient_id = serializer.validated_data["patient_id"]
-    patient = get_object_or_404(UserModel, pk=patient_id, role=Role.PATIENT)
-    _check_patient_access(user, patient)
-
-    recipient_id = serializer.validated_data.get("recipient_id")
-    if recipient_id is not None and recipient_id != user.pk:
-        # Создание расписания для пациента от имени другого пользователя
-        if recipient_id != patient.pk:
-            return Response({"detail": "recipient_id must be patient or self."}, status=status.HTTP_400_BAD_REQUEST)
-        if user.role == Role.PATIENT:  # ty: ignore[unresolved-attribute]
-            raise PermissionDenied
-        recipient = patient
-    else:
-        # Пациент не может создавать расписание для другого пациента
-        if user.role == Role.PATIENT and user.pk != patient.pk:  # ty: ignore[unresolved-attribute]
-            raise PermissionDenied
-        # Доктор не имеет собственного расписания — только для пациента через recipient_id
-        if user.role == Role.DOCTOR:  # ty: ignore[unresolved-attribute]
-            return Response({"detail": "Doctors must specify recipient_id."}, status=status.HTTP_400_BAD_REQUEST)
-        recipient = user
-
-    schedule, created = NotificationSchedule.objects.get_or_create(
-        recipient=recipient,
-        patient=patient,
-        defaults={
-            "days_of_week": serializer.validated_data["days_of_week"],
-            "times": serializer.validated_data["times"],
-            "is_enabled": serializer.validated_data["is_enabled"],
-        },
-    )
-    if not created:
-        schedule.days_of_week = serializer.validated_data["days_of_week"]
-        schedule.times = serializer.validated_data["times"]
-        schedule.is_enabled = serializer.validated_data["is_enabled"]
-        schedule.save()
-
+    schedule, created = service.upsert_schedule(request.user, serializer.validated_data)
     response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return Response(NotificationScheduleSerializer(schedule).data, status=response_status)
 
@@ -173,23 +94,89 @@ def schedules_list_create(request: Request) -> Response:
 @permission_classes([IsAuthenticated])
 def schedule_detail(request: Request, schedule_id: int) -> Response:
     """Обновляет дни, время и статус активности расписания уведомлений."""
-    schedule = get_object_or_404(
-        NotificationSchedule.objects.select_related("recipient", "patient"),
-        pk=schedule_id,
-    )
-    if not _can_edit_schedule(request.user, schedule):
-        raise PermissionDenied
-
     serializer = NotificationScheduleUpdateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-
-    data = serializer.validated_data
-    if "days_of_week" in data:
-        schedule.days_of_week = data["days_of_week"]
-    if "times" in data:
-        schedule.times = data["times"]
-    if "is_enabled" in data:
-        schedule.is_enabled = data["is_enabled"]
-    schedule.save()
-
+    schedule = ScheduleService().patch_schedule(request.user, schedule_id, serializer.validated_data)
     return Response(NotificationScheduleSerializer(schedule).data)
+
+
+@extend_schema(
+    responses={200: OpenApiResponse(description="Публичный VAPID-ключ для подписки")},
+    summary="Публичный VAPID-ключ для web push",
+    tags=["notifications"],
+    auth=[],
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def vapid_public_key(_request: Request) -> Response:
+    """Возвращает публичный VAPID-ключ для создания push-подписки в браузере."""
+    return Response({"publicKey": settings.VAPID_PUBLIC_KEY})
+
+
+@extend_schema(
+    responses={200: OpenApiResponse(description='{"is_active": bool}')},
+    summary="Статус email-уведомлений текущего пользователя",
+    tags=["notifications"],
+    methods=["GET"],
+)
+@extend_schema(
+    responses={204: OpenApiResponse(description="Email-уведомления включены")},
+    summary="Включить email-уведомления",
+    tags=["notifications"],
+    methods=["POST"],
+)
+@extend_schema(
+    responses={204: OpenApiResponse(description="Email-уведомления отключены")},
+    summary="Отключить email-уведомления",
+    tags=["notifications"],
+    methods=["DELETE"],
+)
+@api_view(["GET", "POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def email_subscription(request: Request) -> Response:
+    """Возвращает статус или меняет активность email-уведомлений; user_id позволяет управлять настройками пациента."""
+    service = EmailSubscriptionService()
+    raw_user_id = request.query_params.get("user_id")
+    target = service.resolve_target(request.user, int(raw_user_id) if raw_user_id else None)
+
+    if request.method == "GET":
+        return Response({"is_active": service.get_status(target)})
+    if request.method == "POST":
+        service.enable(target)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    service.disable(target)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    request=PushSubscriptionSerializer,
+    responses={
+        204: OpenApiResponse(description="Подписка сохранена"),
+        400: OpenApiResponse(description="Ошибка валидации"),
+    },
+    summary="Сохранить web push подписку",
+    tags=["notifications"],
+    methods=["POST"],
+)
+@extend_schema(
+    responses={204: OpenApiResponse(description="Подписка отключена")},
+    summary="Отключить web push подписку",
+    tags=["notifications"],
+    methods=["DELETE"],
+)
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def push_subscription(request: Request) -> Response:
+    """Сохраняет push-подписку браузера или деактивирует её для текущего пользователя."""
+    service = PushSubscriptionService()
+
+    if request.method == "DELETE":
+        service.remove_subscription(request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = PushSubscriptionSerializer(data=request.data)
+    if not serializer.is_valid():
+        logger.error("push_subscription 400: data=%s errors=%s", request.data, serializer.errors)
+        raise ValidationError(serializer.errors)
+    service.save_subscription(request.user, serializer.validated_data)
+    return Response(status=status.HTTP_204_NO_CONTENT)
