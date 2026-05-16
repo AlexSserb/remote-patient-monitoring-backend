@@ -21,6 +21,7 @@ COPY . .
 # Создаём непривилегированного пользователя
 RUN addgroup --system app \
     && adduser --system --ingroup app --no-create-home app \
+    && mkdir -p /app/staticfiles \
     && chown -R app:app /app
 
 USER app

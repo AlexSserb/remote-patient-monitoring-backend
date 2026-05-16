@@ -1,6 +1,8 @@
 services:
   db:
     image: postgres:16-alpine
+    ports:
+      - "6432:5432"
     environment:
       POSTGRES_DB: ${PG_DATABASE}
       POSTGRES_USER: ${PG_LOGIN}
@@ -34,6 +36,8 @@ services:
     environment:
       PG_HOST: db
       REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
+    volumes:
+      - static_files:/app/staticfiles
     depends_on:
       db:
         condition: service_healthy
@@ -46,13 +50,24 @@ services:
     environment:
       PG_HOST: db
       REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
-    ports:
-      - "8000:8000"
+    volumes:
+      - static_files:/app/staticfiles
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/app/staticfiles:ro
+    depends_on:
+      - web
     restart: unless-stopped
 
   worker:
@@ -86,3 +101,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  static_files:

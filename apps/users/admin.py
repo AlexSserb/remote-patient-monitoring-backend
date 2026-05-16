@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, ClassVar
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
+from django_celery_beat.models import ClockedSchedule, CrontabSchedule, IntervalSchedule, PeriodicTask, SolarSchedule
+from django_celery_results.models import GroupResult, TaskResult
 
 from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
 
@@ -125,3 +127,10 @@ class UserAdmin(BaseUserAdmin):
 
 
 admin.site.unregister(Group)
+admin.site.unregister(PeriodicTask)
+admin.site.unregister(IntervalSchedule)
+admin.site.unregister(CrontabSchedule)
+admin.site.unregister(SolarSchedule)
+admin.site.unregister(ClockedSchedule)
+admin.site.unregister(TaskResult)
+admin.site.unregister(GroupResult)

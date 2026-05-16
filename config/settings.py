@@ -18,6 +18,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS: list[str] = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+CSRF_TRUSTED_ORIGINS: list[str] = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")
 
 INSTALLED_APPS = [
     "daphne",
@@ -119,6 +120,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Директории для поиска фикстур по имени файла (без указания полного пути в loaddata)
 FIXTURE_DIRS = [

@@ -45,7 +45,7 @@ class NotificationDispatchService:
                 continue
             # Защита от повторной отправки при двойном срабатывании Beat в одну минуту
             if self._record_repo.has_recent_notification(schedule, now_utc - timedelta(minutes=2)):
-                logger.debug("scan_and_dispatch: schedule %s skipped — already sent recently", schedule.pk)
+                logger.debug("scan_and_dispatch: schedule %s skipped - already sent recently", schedule.pk)
                 continue
             due.append(schedule.pk)
         logger.info("scan_and_dispatch: %d schedules due for dispatch", len(due))
@@ -97,7 +97,7 @@ class NotificationDispatchService:
             record = self._record_repo.create_record(schedule, config.channel, target)
             record_ids.append(record.pk)
             logger.info(
-                "send_notification: sent %s → %s (record=%s)",
+                "send_notification: sent %s => %s (record=%s)",
                 config.channel,
                 target,
                 record.pk,

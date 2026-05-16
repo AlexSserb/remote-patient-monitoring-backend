@@ -2,6 +2,7 @@
 set -e
 
 python manage.py migrate --noinput
+python manage.py collectstatic --noinput
 
 # Загружаем фикстуры только при первом запуске (пустая таблица пользователей)
 if python manage.py shell -c \

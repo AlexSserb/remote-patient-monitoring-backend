@@ -9,3 +9,4 @@ class NotificationsConfig(AppConfig):
     """Конфигурация приложения notifications — расписания и история уведомлений."""
 
     name = "apps.notifications"
+    verbose_name = "Уведомления"

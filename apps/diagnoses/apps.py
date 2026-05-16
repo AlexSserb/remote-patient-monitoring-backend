@@ -9,3 +9,4 @@ class DiagnosesConfig(AppConfig):
     """Конфигурация приложения diagnoses — диагнозы, метрики и дневники пациентов."""
 
     name = "apps.diagnoses"
+    verbose_name = "Диагнозы"
