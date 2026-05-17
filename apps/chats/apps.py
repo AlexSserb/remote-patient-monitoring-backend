@@ -9,6 +9,7 @@ class ChatsConfig(AppConfig):
     """Конфигурация приложения chats — прямые чаты между участниками системы."""
 
     name = "apps.chats"
+    verbose_name = "Чаты"
 
     def ready(self) -> None:
         """Подключает обработчики сигналов при старте приложения."""

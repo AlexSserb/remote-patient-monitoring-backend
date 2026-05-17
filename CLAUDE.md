@@ -31,9 +31,14 @@ The codebase uses both English and Russian. Comments have to be in Russian. Code
 
 ### Before coding
 
-1. Explain your plan. Briefly describe what you plan to do and in which files. Wait for approval.
-2. Review existing code. Before creating a new file, check if there is similar functionality in the project. DO NOT duplicate code.
-3. One task at a time. Don't try to solve multiple problems in a single answer.
+1. Define success criteria to loop until verified. Transform task into verifiable goals. Examples:
+   - "Add validation" → "Write tests for invalid inputs, then make them pass"
+   - "Fix the bug" → "Write a test that reproduces it, then make it pass"
+   - "Refactor X" → "Ensure tests pass before and after"
+   For multi-step tasks, state a brief plan.
+2. Explain your plan. Briefly describe what you plan to do and in which files. Wait for approval.
+3. Review existing code. Before creating a new file, check if there is similar functionality in the project. DO NOT duplicate code.
+4. One task at a time. Don't try to solve multiple problems in a single answer.
 
 ### While coding
 

@@ -9,3 +9,4 @@ class UsersConfig(AppConfig):
     """Конфигурация приложения users — кастомная модель пользователя и аутентификация."""
 
     name = "apps.users"
+    verbose_name = "Пользователи"

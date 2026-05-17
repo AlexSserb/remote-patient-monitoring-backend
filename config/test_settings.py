@@ -19,11 +19,17 @@ os.environ.setdefault("MAIL_USE_TLS", "False")
 os.environ.setdefault("MAIL_USERNAME", "test@test.com")
 os.environ.setdefault("MAIL_PASSWORD", "test")
 os.environ.setdefault("MAIL_DEFAULT_SENDER", "test@test.com")
+os.environ.setdefault("VAPID_PRIVATE_KEY", "MHQCAQEEIBkg4PNMM0m8aFjrGxPOqJgxAoGCCqGSM49AwEHoWQDWgAE")
+os.environ.setdefault("VAPID_PUBLIC_KEY", "BDummyVapidPublicKeyForTestingOnlyDoNotUseInProduction123")
+os.environ.setdefault("VAPID_CLAIMS_EMAIL", "test@test.com")
 
 from config.settings import *  # noqa: E402
 
 # Используем in-memory бэкенд для email — письма доступны через django.core.mail.outbox
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"  # type: ignore[assignment]
+
+CELERY_TASK_ALWAYS_EAGER = True  # type: ignore[assignment]
+CELERY_TASK_EAGER_PROPAGATES = True  # type: ignore[assignment]
 
 # Заменяем Redis на in-memory кэш — устраняет зависимость от реального Redis в тестах
 CACHES = {

@@ -9,6 +9,7 @@ from typing import Any
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
+from djangorestframework_camel_case.util import camelize
 
 from apps.chats.models import Chat, Message
 from apps.chats.serializers import MessageSerializer
@@ -38,10 +39,8 @@ def _get_chat_if_participant(chat_id: int, user_id: int) -> Chat | None:
 def _create_message(chat: Chat, user: Any, content: str) -> dict:
     """Создаёт сообщение и возвращает его сериализованное представление."""
     message = send_message(chat, user, content)
-    # select_related необходим — sender уже загружен через send_message, но сериализатор
-    # обращается к полям sender, поэтому обновляем объект с нужными данными
     message.sender = user
-    return MessageSerializer(message).data
+    return camelize(MessageSerializer(message).data)
 
 
 @database_sync_to_async

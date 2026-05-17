@@ -13,6 +13,7 @@
       "is_active": true,
       "is_staff": true,
       "date_joined": "2026-04-09T13:38:22.267Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -31,6 +32,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-10T09:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -49,6 +51,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-15T10:30:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -67,6 +70,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-20T11:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -85,6 +89,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-01-05T08:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -103,6 +108,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-01-12T09:15:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -121,6 +127,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-01-18T10:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -139,6 +146,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-01-25T14:30:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -157,6 +165,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-01T08:45:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -175,6 +184,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-03T11:20:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -193,6 +203,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-07T13:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
@@ -211,6 +222,7 @@
       "is_active": true,
       "is_staff": false,
       "date_joined": "2026-02-14T16:00:00.000Z",
+      "timezone": "Europe/Astrakhan",
       "groups": [],
       "user_permissions": []
     }
