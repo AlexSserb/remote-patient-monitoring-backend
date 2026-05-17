@@ -143,8 +143,8 @@ class EmailChangeVerifySerializer(serializers.Serializer):
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """Проверяет OTP и сохраняет новый email в validated_data для последующего применения."""
-        user: Any = self.context["user"]
-        new_email = verify_and_consume_email_change_otp(user.pk, attrs["otp"])
+        user_id: int = self.context["user_id"]
+        new_email = verify_and_consume_email_change_otp(user_id, attrs["otp"])
         if new_email is None:
             msg = "Неверный или истёкший код подтверждения."
             raise serializers.ValidationError(msg, code="invalid_otp")
@@ -172,8 +172,8 @@ class PasswordResetVerifySerializer(serializers.Serializer):
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """Верифицирует OTP и возвращает атрибуты для последующей установки пароля."""
-        user: Any = self.context["user"]
-        if not verify_and_consume_password_reset_otp(user.pk, attrs["otp"]):
+        user_id: int = self.context["user_id"]
+        if not verify_and_consume_password_reset_otp(user_id, attrs["otp"]):
             msg = "Неверный или истёкший код подтверждения."
             raise serializers.ValidationError(msg, code="invalid_otp")
         return attrs

@@ -220,20 +220,20 @@ class TestEmailChangeVerifySerializer:
     def test_valid_otp_returns_new_email_in_validated_data(self, user: User) -> None:
         """Верный OTP помещает новый email в validated_data для применения."""
         code = generate_and_store_email_change_otp(user.pk, "confirmed@example.com")
-        serializer = EmailChangeVerifySerializer(data={"otp": code}, context={"user": user})
+        serializer = EmailChangeVerifySerializer(data={"otp": code}, context={"user_id": user.pk})
         assert serializer.is_valid()
         assert serializer.validated_data["new_email"] == "confirmed@example.com"
 
     def test_wrong_otp_is_rejected(self, user: User) -> None:
         """Неверный OTP вызывает ошибку валидации."""
         generate_and_store_email_change_otp(user.pk, "confirmed@example.com")
-        serializer = EmailChangeVerifySerializer(data={"otp": "000000"}, context={"user": user})
+        serializer = EmailChangeVerifySerializer(data={"otp": "000000"}, context={"user_id": user.pk})
         assert not serializer.is_valid()
 
     def test_email_taken_between_request_and_verify_is_rejected(self, user: User, other_user: User) -> None:
         """Если новый email занял другой пользователь за время TTL — верификация отклоняется."""
         code = generate_and_store_email_change_otp(user.pk, other_user.email)
-        serializer = EmailChangeVerifySerializer(data={"otp": code}, context={"user": user})
+        serializer = EmailChangeVerifySerializer(data={"otp": code}, context={"user_id": user.pk})
         assert not serializer.is_valid()
 
 
@@ -250,7 +250,7 @@ class TestPasswordResetVerifySerializer:
         code = generate_and_store_password_reset_otp(user.pk)
         serializer = PasswordResetVerifySerializer(
             data={"otp": code, "new_password": "NewSecurePass456!"},
-            context={"user": user},
+            context={"user_id": user.pk},
         )
         assert serializer.is_valid()
 
@@ -259,7 +259,7 @@ class TestPasswordResetVerifySerializer:
         generate_and_store_password_reset_otp(user.pk)
         serializer = PasswordResetVerifySerializer(
             data={"otp": "000000", "new_password": "NewSecurePass456!"},
-            context={"user": user},
+            context={"user_id": user.pk},
         )
         assert not serializer.is_valid()
 
@@ -268,7 +268,7 @@ class TestPasswordResetVerifySerializer:
         code = generate_and_store_password_reset_otp(user.pk)
         serializer = PasswordResetVerifySerializer(
             data={"otp": code, "new_password": "123"},
-            context={"user": user},
+            context={"user_id": user.pk},
         )
         assert not serializer.is_valid()
 

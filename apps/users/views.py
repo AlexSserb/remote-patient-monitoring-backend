@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from django.contrib.auth import get_user_model
-from django.db.models import Count, Q, QuerySet
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
@@ -14,8 +12,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from apps.diagnoses.models import PatientDiagnosis
-from apps.users.models import DoctorPatient, Role
+from apps.users.models import Role
 from apps.users.serializers import (
     EditPatientSerializer,
     EmailChangeRequestSerializer,
@@ -30,18 +27,22 @@ from apps.users.serializers import (
     UserShortSerializer,
     VerifyOTPSerializer,
 )
-from apps.users.services import generate_and_store_password_reset_otp, send_password_reset_otp
+from apps.users.services import (
+    PatientService,
+    UserProfileService,
+    generate_and_store_password_reset_otp,
+    send_password_reset_otp,
+)
+from config.permissions import IsDoctorOrCaregiver
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
-
-UserModel = get_user_model()
 
 
 @extend_schema(
     request=LoginSerializer,
     responses={200: OpenApiResponse(description="pre_auth_token для второго шага")},
-    summary="Шаг 1 — вход по email и паролю",
+    summary="Шаг 1. Вход по email и паролю",
     tags=["auth"],
 )
 @api_view(["POST"])
@@ -56,7 +57,7 @@ def login(request: Request) -> Response:
 @extend_schema(
     request=VerifyOTPSerializer,
     responses={200: OpenApiResponse(description="access и refresh JWT-токены")},
-    summary="Шаг 2 — подтверждение OTP",
+    summary="Шаг 2. Подтверждение OTP",
     tags=["auth"],
 )
 @api_view(["POST"])
@@ -125,11 +126,13 @@ def get_user(request: Request, user_id: int) -> Response:
     """Возвращает или обновляет профиль пользователя; доступен только владельцу аккаунта."""
     if request.user.pk != user_id:
         raise PermissionDenied
-    user = UserModel.objects.get(pk=user_id)
+    service = UserProfileService()
     if request.method == "PATCH":
-        serializer = UpdateProfileSerializer(user, data=request.data, partial=True)
+        serializer = UpdateProfileSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        user = service.update_profile(user_id, serializer.validated_data)
+    else:
+        user = service.get_user(user_id)
     return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
 
 
@@ -169,11 +172,9 @@ def verify_email_change(request: Request, user_id: int) -> Response:
     """Проверяет OTP и применяет новый email к аккаунту пользователя."""
     if request.user.pk != user_id:
         raise PermissionDenied
-    user = UserModel.objects.get(pk=user_id)
-    serializer = EmailChangeVerifySerializer(data=request.data, context={"user": user})
+    serializer = EmailChangeVerifySerializer(data=request.data, context={"user_id": user_id})
     serializer.is_valid(raise_exception=True)
-    user.email = serializer.validated_data["new_email"]
-    user.save(update_fields=["email"])
+    user = UserProfileService().apply_email_change(user_id, serializer.validated_data["new_email"])
     return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
 
 
@@ -212,11 +213,9 @@ def verify_password_reset(request: Request, user_id: int) -> Response:
     """Проверяет OTP и устанавливает новый пароль пользователя."""
     if request.user.pk != user_id:
         raise PermissionDenied
-    user = UserModel.objects.get(pk=user_id)
-    serializer = PasswordResetVerifySerializer(data=request.data, context={"user": user})
+    serializer = PasswordResetVerifySerializer(data=request.data, context={"user_id": user_id})
     serializer.is_valid(raise_exception=True)
-    user.set_password(serializer.validated_data["new_password"])
-    user.save(update_fields=["password"])
+    UserProfileService().apply_password_reset(user_id, serializer.validated_data["new_password"])
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -226,12 +225,10 @@ def verify_password_reset(request: Request, user_id: int) -> Response:
     tags=["users"],
 )
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsDoctorOrCaregiver])
 def list_doctors(request: Request) -> Response:
     """Возвращает всех докторов системы для использования в фильтрах."""
-    if request.user.role not in (Role.DOCTOR, Role.CAREGIVER):
-        raise PermissionDenied
-    doctors = UserModel.objects.filter(role=Role.DOCTOR).order_by("last_name", "first_name")
+    doctors = UserProfileService().list_doctors()
     return Response(UserShortSerializer(doctors, many=True).data, status=status.HTTP_200_OK)
 
 
@@ -241,44 +238,11 @@ def list_doctors(request: Request) -> Response:
     tags=["users"],
 )
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsDoctorOrCaregiver])
 def list_caregivers(request: Request) -> Response:
     """Возвращает всех опекунов системы для использования в фильтрах."""
-    if request.user.role not in (Role.DOCTOR, Role.CAREGIVER):
-        raise PermissionDenied
-    caregivers = UserModel.objects.filter(role=Role.CAREGIVER).order_by("last_name", "first_name")
+    caregivers = UserProfileService().list_caregivers()
     return Response(UserShortSerializer(caregivers, many=True).data, status=status.HTTP_200_OK)
-
-
-def _filter_patients(qs: QuerySet, request: Request, user: Any) -> QuerySet:
-    """Применяет все фильтры к queryset пациентов на основе параметров запроса."""
-    if user.role == Role.DOCTOR:
-        if request.query_params.get("attached", "false").lower() == "true":
-            qs = qs.filter(patient_doctors__doctor=user)
-    else:
-        # Опекун видит только своих пациентов
-        qs = qs.filter(patient_caregivers__caregiver=user)
-
-    has_caregiver = request.query_params.get("has_caregiver", "all")
-    if has_caregiver == "yes":
-        qs = qs.filter(caregiver_count__gt=0)
-    elif has_caregiver == "no":
-        qs = qs.filter(caregiver_count=0)
-
-    if doctor_ids := request.query_params.getlist("doctors"):
-        qs = qs.filter(patient_doctors__doctor__in=doctor_ids)
-
-    if caregiver_ids := request.query_params.getlist("caregivers"):
-        qs = qs.filter(patient_caregivers__caregiver__in=caregiver_ids)
-
-    if diagnosis_ids := request.query_params.getlist("diagnoses"):
-        qs = qs.filter(diagnoses__diagnosis__in=diagnosis_ids)
-
-    if search := request.query_params.get("search", "").strip():
-        qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
-
-    # JOIN-фильтры по спискам могут дублировать строки
-    return qs.distinct()
 
 
 @extend_schema(
@@ -341,61 +305,11 @@ def _filter_patients(qs: QuerySet, request: Request, user: Any) -> QuerySet:
     tags=["users"],
 )
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsDoctorOrCaregiver])
 def list_patients(request: Request) -> Response:
     """Возвращает постраничный список пациентов с количеством опекунов для доктора или опекуна."""
-    user = request.user
-    if user.role not in (Role.DOCTOR, Role.CAREGIVER):
-        raise PermissionDenied
-
-    qs = (
-        UserModel.objects.filter(role=Role.PATIENT)
-        .prefetch_related("diagnoses__diagnosis", "patient_doctors__doctor", "patient_caregivers__caregiver")
-        .annotate(
-            # distinct=True защищает от дублей строк при последующих JOIN-фильтрах
-            caregiver_count=Count("patient_caregivers", distinct=True),
-        )
-    )
-
-    qs = _filter_patients(qs, request, user)
-
-    total = qs.count()
-
-    try:
-        page = max(1, int(request.query_params.get("page", 1)))
-        page_size = min(100, max(1, int(request.query_params.get("page_size", 20))))
-    except ValueError:
-        page, page_size = 1, 20
-
-    start = (page - 1) * page_size
-    patients = qs.order_by("last_name", "first_name")[start : start + page_size]
-
-    return Response(
-        {"count": total, "results": PatientListItemSerializer(patients, many=True).data},
-        status=status.HTTP_200_OK,
-    )
-
-
-def _sync_patient_diagnoses(patient: Any, diagnosis_ids: list[int], assigned_by: Any) -> None:
-    """Синхронизирует диагнозы пациента: добавляет новые и удаляет отсутствующие в переданном списке."""
-    current_ids = set(PatientDiagnosis.objects.filter(patient=patient).values_list("diagnosis_id", flat=True))
-    new_ids = set(diagnosis_ids)
-    if to_remove := current_ids - new_ids:
-        PatientDiagnosis.objects.filter(patient=patient, diagnosis_id__in=to_remove).delete()
-    if to_add := new_ids - current_ids:
-        PatientDiagnosis.objects.bulk_create(
-            [PatientDiagnosis(patient=patient, diagnosis_id=did, assigned_by=assigned_by) for did in to_add]
-        )
-
-
-def _sync_patient_doctors(patient: Any, doctor_ids: list[int]) -> None:
-    """Синхронизирует список докторов пациента: добавляет новых и удаляет отсутствующих в переданном списке."""
-    current_ids = set(DoctorPatient.objects.filter(patient=patient).values_list("doctor_id", flat=True))
-    new_ids = set(doctor_ids)
-    if to_remove := current_ids - new_ids:
-        DoctorPatient.objects.filter(patient=patient, doctor_id__in=to_remove).delete()
-    if to_add := new_ids - current_ids:
-        DoctorPatient.objects.bulk_create([DoctorPatient(patient=patient, doctor_id=did) for did in to_add])
+    patients, total = PatientService().list_patients(request.user, request.query_params)
+    return Response({"count": total, "results": PatientListItemSerializer(patients, many=True).data})
 
 
 @extend_schema(
@@ -412,32 +326,9 @@ def _sync_patient_doctors(patient: Any, doctor_ids: list[int]) -> None:
 @permission_classes([IsAuthenticated])
 def edit_patient(request: Request, patient_id: int) -> Response:
     """Обновляет диагнозы и список докторов пациента; доступно только прикреплённому доктору."""
-    user = request.user
-    if user.role != Role.DOCTOR:
+    if request.user.role != Role.DOCTOR:
         raise PermissionDenied
-
-    try:
-        patient = UserModel.objects.get(pk=patient_id, role=Role.PATIENT)
-    except UserModel.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if not DoctorPatient.objects.filter(doctor=user, patient=patient).exists():
-        raise PermissionDenied
-
     serializer = EditPatientSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    data = serializer.validated_data
-
-    if "diagnoses" in data:
-        _sync_patient_diagnoses(patient, data["diagnoses"], assigned_by=user)
-
-    if "doctors" in data:
-        _sync_patient_doctors(patient, data["doctors"])
-
-    updated_patient = (
-        UserModel.objects.filter(pk=patient_id)
-        .prefetch_related("diagnoses__diagnosis", "patient_doctors__doctor", "patient_caregivers__caregiver")
-        .annotate(caregiver_count=Count("patient_caregivers", distinct=True))
-        .get()
-    )
+    updated_patient = PatientService().edit_patient(request.user, patient_id, serializer.validated_data)
     return Response(PatientListItemSerializer(updated_patient).data, status=status.HTTP_200_OK)
