@@ -78,7 +78,7 @@ def list_diary_fields(request: Request) -> Response:
 
     if user.role == Role.PATIENT:
         patient = user
-    elif user.role in (Role.CAREGIVER, Role.DOCTOR):
+    elif user.role == Role.CAREGIVER:
         raw_id = request.query_params.get("patient_id")
         if not raw_id:
             return Response({"detail": "patient_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -86,10 +86,7 @@ def list_diary_fields(request: Request) -> Response:
             patient_id = int(raw_id)
         except ValueError:
             return Response({"detail": "patient_id must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
-        if user.role == Role.CAREGIVER:
-            if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
-                raise PermissionDenied
-        elif not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
+        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
             raise PermissionDenied
         patient = get_object_or_404(User, id=patient_id, role=Role.PATIENT)
     else:
@@ -116,17 +113,14 @@ def _resolve_patient_for_diary(request: Request, patient_id_raw: str | None) -> 
     user = request.user
     if user.role == Role.PATIENT:
         return user
-    if user.role in (Role.CAREGIVER, Role.DOCTOR):
+    if user.role == Role.CAREGIVER:
         if not patient_id_raw:
             raise ValidationError({"patient_id": "patient_id is required"})
         try:
             patient_id = int(patient_id_raw)
         except ValueError:
             raise ValidationError({"patient_id": "patient_id must be an integer"}) from None
-        if user.role == Role.CAREGIVER:
-            if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
-                raise PermissionDenied
-        elif not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
+        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
             raise PermissionDenied
         return get_object_or_404(User, id=patient_id, role=Role.PATIENT)
     raise PermissionDenied
