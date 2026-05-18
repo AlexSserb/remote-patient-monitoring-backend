@@ -2,32 +2,27 @@
 
 from __future__ import annotations
 
-import datetime
-from datetime import date, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
-from django.db.models import BooleanField, FloatField, IntegerField, Max, Min
-from django.db.models.functions import Cast
-from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
-from apps.diagnoses.models import Diagnosis, DiaryEntry, DiaryEntryValue, Metric, MetricType
 from apps.diagnoses.serializers import (
     AnalyticsDataPointSerializer,
     AnalyticsMetricSerializer,
+    AnalyticsQuerySerializer,
     AnalyticsResponseSerializer,
     DiagnosisShortSerializer,
     DiaryEntryCreateSerializer,
     DiaryEntryInfo,
     DiaryFieldSerializer,
 )
-from apps.users.models import CaregiverPatient, DoctorPatient, Role, User
+from apps.diagnoses.services import DiagnosisService
+from config.permissions import IsDoctorOrCaregiver
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -42,12 +37,10 @@ if TYPE_CHECKING:
     tags=["diagnoses"],
 )
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsDoctorOrCaregiver])
 def list_diagnoses(request: Request) -> Response:
     """Возвращает все диагнозы системы для использования в фильтрах."""
-    if request.user.role not in (Role.DOCTOR, Role.CAREGIVER):
-        raise PermissionDenied
-    diagnoses = Diagnosis.objects.order_by("code")
+    diagnoses = DiagnosisService().list_diagnoses()
     return Response(DiagnosisShortSerializer(diagnoses, many=True).data, status=status.HTTP_200_OK)
 
 
@@ -74,56 +67,8 @@ def list_diagnoses(request: Request) -> Response:
 @permission_classes([IsAuthenticated])
 def list_diary_fields(request: Request) -> Response:
     """Возвращает уникальные поля дневника, агрегированные по всем диагнозам пациента."""
-    user = request.user
-
-    if user.role == Role.PATIENT:
-        patient = user
-    elif user.role == Role.CAREGIVER:
-        raw_id = request.query_params.get("patient_id")
-        if not raw_id:
-            return Response({"detail": "patient_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            patient_id = int(raw_id)
-        except ValueError:
-            return Response({"detail": "patient_id must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
-        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
-            raise PermissionDenied
-        patient = get_object_or_404(User, id=patient_id, role=Role.PATIENT)
-    else:
-        raise PermissionDenied
-
-    metrics = (
-        Metric.objects.filter(diagnosis_metrics__diagnosis__patient_diagnoses__patient=patient)
-        .annotate(
-            is_required=Cast(
-                Max(Cast("diagnosis_metrics__is_required", output_field=IntegerField())),
-                output_field=BooleanField(),
-            ),
-            min_value=Max("diagnosis_metrics__min_value", output_field=FloatField()),
-            max_value=Min("diagnosis_metrics__max_value", output_field=FloatField()),
-        )
-        .order_by("name")
-    )
-
-    return Response(DiaryFieldSerializer(metrics, many=True).data, status=status.HTTP_200_OK)
-
-
-def _resolve_patient_for_diary(request: Request, patient_id_raw: str | None) -> User:
-    """Определяет пациента по роли пользователя; доктор и опекун обязаны передать patient_id."""
-    user = request.user
-    if user.role == Role.PATIENT:
-        return user
-    if user.role == Role.CAREGIVER:
-        if not patient_id_raw:
-            raise ValidationError({"patient_id": "patient_id is required"})
-        try:
-            patient_id = int(patient_id_raw)
-        except ValueError:
-            raise ValidationError({"patient_id": "patient_id must be an integer"}) from None
-        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
-            raise PermissionDenied
-        return get_object_or_404(User, id=patient_id, role=Role.PATIENT)
-    raise PermissionDenied
+    fields = DiagnosisService().get_diary_fields(request.user, request.query_params.get("patient_id"))
+    return Response(DiaryFieldSerializer(fields, many=True).data, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
@@ -210,87 +155,31 @@ class DiaryEntryViewSet(ViewSet):
 
     def list(self, request: Request) -> Response:
         """Возвращает все записи дневника пациента в обратном хронологическом порядке."""
-        patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
-        entries = DiaryEntry.objects.filter(patient=patient).select_related("author").prefetch_related("values__metric")
+        entries = DiagnosisService().list_diary_entries(request.user, request.query_params.get("patient_id"))
         return Response(DiaryEntryInfo(entries, many=True).data, status=status.HTTP_200_OK)
 
     def create(self, request: Request) -> Response:
         """Создаёт новую запись дневника с переданным набором значений метрик."""
-        patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
         serializer = DiaryEntryCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        entry = DiaryEntry.objects.create(patient=patient, author=request.user)
-        DiaryEntryValue.objects.bulk_create(
-            [
-                DiaryEntryValue(
-                    entry=entry,
-                    metric_id=v["metric_id"],
-                    value_number=v.get("value_number"),
-                    value_text=v.get("value_text", ""),
-                    value_boolean=v.get("value_boolean"),
-                )
-                for v in serializer.validated_data["values"]
-            ]
+        entry = DiagnosisService().create_diary_entry(
+            request.user, request.query_params.get("patient_id"), serializer.validated_data
         )
-        entry_with_values = (
-            DiaryEntry.objects.select_related("author").prefetch_related("values__metric").get(pk=entry.pk)
-        )
-        return Response(DiaryEntryInfo(entry_with_values).data, status=status.HTTP_201_CREATED)
+        return Response(DiaryEntryInfo(entry).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request: Request, pk: int | None = None) -> Response:
         """Заменяет значения метрик в существующей записи дневника через upsert."""
-        patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
-        entry = get_object_or_404(DiaryEntry, pk=pk, patient=patient)
         serializer = DiaryEntryCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        for v in serializer.validated_data["values"]:
-            DiaryEntryValue.objects.update_or_create(
-                entry=entry,
-                metric_id=v["metric_id"],
-                defaults={
-                    "value_number": v.get("value_number"),
-                    "value_text": v.get("value_text", ""),
-                    "value_boolean": v.get("value_boolean"),
-                },
-            )
-        entry_with_values = (
-            DiaryEntry.objects.select_related("author").prefetch_related("values__metric").get(pk=entry.pk)
+        entry = DiagnosisService().update_diary_entry(
+            request.user, request.query_params.get("patient_id"), pk, serializer.validated_data
         )
-        return Response(DiaryEntryInfo(entry_with_values).data, status=status.HTTP_200_OK)
+        return Response(DiaryEntryInfo(entry).data, status=status.HTTP_200_OK)
 
     def destroy(self, request: Request, pk: int | None = None) -> Response:
         """Удаляет запись дневника вместе со всеми её значениями метрик."""
-        patient = _resolve_patient_for_diary(request, request.query_params.get("patient_id"))
-        entry = get_object_or_404(DiaryEntry, pk=pk, patient=patient)
-        entry.delete()
+        DiagnosisService().delete_diary_entry(request.user, request.query_params.get("patient_id"), pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-def _resolve_patient_for_analytics(request: Request) -> User:
-    """Определяет пациента для аналитики; доктор и опекун обязаны передать patient_id."""
-    user = request.user
-
-    if user.role == Role.PATIENT:
-        return user
-
-    raw_id = request.query_params.get("patient_id")
-    if not raw_id:
-        raise ValidationError({"patient_id": "patient_id is required"})
-    try:
-        patient_id = int(raw_id)
-    except ValueError:
-        raise ValidationError({"patient_id": "patient_id must be an integer"}) from None
-
-    if user.role == Role.CAREGIVER:
-        if not CaregiverPatient.objects.filter(caregiver=user, patient_id=patient_id).exists():
-            raise PermissionDenied
-    elif user.role == Role.DOCTOR:
-        if not DoctorPatient.objects.filter(doctor=user, patient_id=patient_id).exists():
-            raise PermissionDenied
-    else:
-        raise PermissionDenied
-
-    return get_object_or_404(User, id=patient_id, role=Role.PATIENT)
 
 
 @extend_schema(
@@ -337,60 +226,13 @@ def _resolve_patient_for_analytics(request: Request) -> User:
 @permission_classes([IsAuthenticated])
 def get_analytics(request: Request) -> Response:
     """Возвращает числовые метрики пациента и точки данных за выбранный период."""
-    patient = _resolve_patient_for_analytics(request)
-
-    today = datetime.datetime.now(tz=datetime.UTC).date()
-    date_from_str = request.query_params.get("date_from")
-    date_to_str = request.query_params.get("date_to")
-    try:
-        date_from = date.fromisoformat(date_from_str) if date_from_str else today - timedelta(days=7)
-        date_to = date.fromisoformat(date_to_str) if date_to_str else today
-    except ValueError:
-        return Response(
-            {"detail": "Invalid date format. Use YYYY-MM-DD."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    metric_ids_str = request.query_params.get("metric_ids", "")
-    metric_ids: list[int] = []
-    if metric_ids_str:
-        try:
-            metric_ids = [int(mid) for mid in metric_ids_str.split(",") if mid]
-        except ValueError:
-            return Response(
-                {"detail": "metric_ids must be comma-separated integers"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    available_metrics = (
-        Metric.objects.filter(
-            diagnosis_metrics__diagnosis__patient_diagnoses__patient=patient,
-            type=MetricType.NUMBER,
-        )
-        .distinct()
-        .order_by("name")
-    )
-
-    data_points: list[object] = []
-    if metric_ids:
-        values = (
-            DiaryEntryValue.objects.filter(
-                entry__patient=patient,
-                entry__created_at__date__gte=date_from,
-                entry__created_at__date__lte=date_to,
-                metric_id__in=metric_ids,
-                metric__type=MetricType.NUMBER,
-                value_number__isnull=False,
-            )
-            .select_related("metric", "entry")
-            .order_by("entry__created_at")
-        )
-        data_points = AnalyticsDataPointSerializer(values, many=True).data
-
+    serializer = AnalyticsQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    available_metrics, data_points = DiagnosisService().get_analytics(request.user, **serializer.validated_data)
     return Response(
         {
             "available_metrics": AnalyticsMetricSerializer(available_metrics, many=True).data,
-            "data_points": data_points,
+            "data_points": AnalyticsDataPointSerializer(data_points, many=True).data,
         },
         status=status.HTTP_200_OK,
     )

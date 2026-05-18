@@ -19,3 +19,27 @@ class IsDoctorOrCaregiver(BasePermission):
     def has_permission(self, request: Request, view: APIView) -> bool:
         """Возвращает True, если у пользователя роль доктора или опекуна."""
         return hasattr(request.user, "role") and request.user.role in (Role.DOCTOR, Role.CAREGIVER)
+
+
+class IsDoctor(BasePermission):
+    """Разрешает доступ только пользователям с ролью доктора."""
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        """Возвращает True, если у пользователя роль доктора."""
+        return hasattr(request.user, "role") and request.user.role == Role.DOCTOR
+
+
+class IsCaregiver(BasePermission):
+    """Разрешает доступ только пользователям с ролью опекуна."""
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        """Возвращает True, если у пользователя роль опекуна."""
+        return hasattr(request.user, "role") and request.user.role == Role.CAREGIVER
+
+
+class IsPatient(BasePermission):
+    """Разрешает доступ только пользователям с ролью пациента."""
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        """Возвращает True, если у пользователя роль пациента."""
+        return hasattr(request.user, "role") and request.user.role == Role.PATIENT

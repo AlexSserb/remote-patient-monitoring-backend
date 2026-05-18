@@ -12,7 +12,6 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from apps.users.models import Role
 from apps.users.serializers import (
     EditPatientSerializer,
     EmailChangeRequestSerializer,
@@ -33,7 +32,7 @@ from apps.users.services import (
     generate_and_store_password_reset_otp,
     send_password_reset_otp,
 )
-from config.permissions import IsDoctorOrCaregiver
+from config.permissions import IsDoctor, IsDoctorOrCaregiver
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -323,11 +322,9 @@ def list_patients(request: Request) -> Response:
     tags=["users"],
 )
 @api_view(["PATCH"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsDoctor])
 def edit_patient(request: Request, patient_id: int) -> Response:
     """Обновляет диагнозы и список докторов пациента; доступно только прикреплённому доктору."""
-    if request.user.role != Role.DOCTOR:
-        raise PermissionDenied
     serializer = EditPatientSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     updated_patient = PatientService().edit_patient(request.user, patient_id, serializer.validated_data)

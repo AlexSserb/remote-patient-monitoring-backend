@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+from datetime import timedelta
 from typing import ClassVar
 
 from django.contrib.auth import get_user_model
@@ -126,6 +128,35 @@ class AnalyticsResponseSerializer(serializers.Serializer):
 
     available_metrics = AnalyticsMetricSerializer(many=True)
     data_points = AnalyticsDataPointSerializer(many=True)
+
+
+def _default_date_from() -> datetime.date:
+    """Возвращает дату 7 дней назад от текущего момента."""
+    return datetime.datetime.now(tz=datetime.UTC).date() - timedelta(days=7)
+
+
+def _default_date_to() -> datetime.date:
+    """Возвращает текущую дату."""
+    return datetime.datetime.now(tz=datetime.UTC).date()
+
+
+class AnalyticsQuerySerializer(serializers.Serializer):
+    """Параметры запроса эндпоинта аналитики с дефолтными значениями дат."""
+
+    patient_id = serializers.IntegerField(required=False, default=None, allow_null=True)
+    date_from = serializers.DateField(required=False, default=_default_date_from)
+    date_to = serializers.DateField(required=False, default=_default_date_to)
+    metric_ids = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate_metric_ids(self, value: str) -> list[int]:
+        """Преобразует строку из запятых-разделённых ID метрик в список целых чисел."""
+        if not value:
+            return []
+        try:
+            return [int(mid) for mid in value.split(",") if mid]
+        except ValueError:
+            msg = "metric_ids must be comma-separated integers"
+            raise serializers.ValidationError(msg) from None
 
 
 class PatientDiagnosisSerializer(serializers.ModelSerializer):
